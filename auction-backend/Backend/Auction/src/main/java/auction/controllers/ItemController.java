@@ -1,0 +1,145 @@
+package auction.controllers;
+
+import auction.entities.DTO.ItemDTO;
+import auction.entities.Item;
+import auction.entities.RO.ItemRO;
+import auction.entities.enums.ItemStatus;
+import auction.entities.utils.MessageUtils;
+import auction.entities.utils.ResponseUtils;
+import auction.exceptions.ServiceException;
+import auction.services.ItemService;
+import auction.services.CategoryService;
+import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Base64;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/item")
+@RequiredArgsConstructor
+public class ItemController {
+
+    private final ItemService itemService;
+    private final CategoryService categoryService;
+
+    @GetMapping
+    public ResponseEntity<?> getAllItems() {
+        return ResponseEntity.ok(ResponseUtils.buildSuccessResponse(
+                HttpStatus.OK, MessageUtils.retrieveSuccess("Items"), itemService.getAll()
+        ));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getItemById(@PathVariable Long id) {
+        return ResponseEntity.ok(ResponseUtils.buildSuccessResponse(
+                HttpStatus.OK, MessageUtils.retrieveSuccess("Item"), itemService.getItemById(id)
+        ));
+    }
+
+    @GetMapping("/filter")
+    public ResponseEntity<?> getItemsByFilter(
+            @RequestParam(required = false) ItemStatus status,
+            @RequestParam(required = false) Long categoryId) {
+
+        if (categoryId != null && categoryService.getById(categoryId) == null) {
+            return ResponseEntity.badRequest().body(ResponseUtils.buildErrorResponse(
+                    HttpStatus.BAD_REQUEST, "Invalid category ID"
+            ));
+        }
+
+        List<Item> items = itemService.getAllByFilter(status, categoryId);
+
+        return ResponseEntity.ok(ResponseUtils.buildSuccessResponse(
+                HttpStatus.OK, "Filtered items retrieved successfully", items
+        ));
+    }
+
+    @PostMapping(consumes = {"multipart/form-data"})
+    public ResponseEntity<?> createItem(
+            @Valid @ModelAttribute ItemRO itemRO,
+            @RequestParam("image") MultipartFile image,
+            BindingResult bindingResult,
+            HttpSession session) {
+        if (bindingResult.hasErrors()) {
+            return ResponseEntity.badRequest().body(ResponseUtils.buildErrorResponse(
+                    HttpStatus.BAD_REQUEST, MessageUtils.validationErrors(bindingResult)
+            ));
+        }
+
+        try {
+            if (!image.isEmpty()) {
+                String mimeType = image.getContentType();
+                String base64Image = "data:" + mimeType + ";base64," +
+                        Base64.getEncoder().encodeToString(image.getBytes());
+                itemRO.setImageBase64(base64Image);
+            }
+
+            itemService.save(itemRO, session);
+            return ResponseEntity.status(HttpStatus.CREATED).body(ResponseUtils.buildSuccessResponse(
+                    HttpStatus.CREATED, MessageUtils.saveSuccess("Item")
+            ));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseUtils.buildErrorResponse(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload image"
+            ));
+        }
+    }
+
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateItem(
+            @PathVariable Long id,
+            @Valid @RequestBody ItemRO itemRO,
+            BindingResult bindingResult,
+            HttpSession session) {
+        if (bindingResult.hasErrors()) {
+            return ResponseEntity.badRequest().body(ResponseUtils.buildErrorResponse(
+                    HttpStatus.BAD_REQUEST, MessageUtils.validationErrors(bindingResult)
+            ));
+        }
+        itemService.update(id, itemRO, session);
+        return ResponseEntity.ok(ResponseUtils.buildSuccessResponse(
+                HttpStatus.OK, MessageUtils.updateSuccess("Item")
+        ));
+    }
+
+    @PutMapping("/{itemId}/status")
+    public ResponseEntity<ItemDTO> updateItemStatus(
+            @PathVariable Long itemId,
+            @RequestParam Long adminId,
+            @RequestParam ItemStatus status,
+            HttpSession session) {
+        ItemDTO updatedItem = itemService.updateItemStatus(itemId, adminId, status, session);
+        return ResponseEntity.ok(updatedItem);
+    }
+
+    @PutMapping("/auction/status")
+    public ResponseEntity<?> updateAuctionStatus(HttpSession session) {
+        try {
+            itemService.updateAuctionStatus(session);
+            return ResponseEntity.ok(ResponseUtils.buildSuccessResponse(
+                    HttpStatus.OK, "Auction status updated successfully"
+            ));
+        } catch (ServiceException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseUtils.buildErrorResponse(
+                    HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage()
+            ));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteItem(@PathVariable Long id) {
+        itemService.delete(id);
+        return ResponseEntity.ok(ResponseUtils.buildSuccessResponse(
+                HttpStatus.OK, MessageUtils.deleteSuccess("Item")
+        ));
+    }
+}
