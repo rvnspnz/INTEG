@@ -42,6 +42,9 @@ public class Bid {
     @Column(name = "bid_time", nullable = false, updatable = false)
     private LocalDateTime bidTime;
 
+    @Column(name = "final_price")
+    private BigDecimal finalPrice;
+
     @PrePersist
     protected void onCreate() {
         if (bidTime == null) {
