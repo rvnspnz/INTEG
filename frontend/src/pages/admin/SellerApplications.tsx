@@ -99,6 +99,29 @@ const SellerApplications = () => {
     }
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "APPROVED":
+        return <BadgeCheck className="h-4 w-4 mr-1.5" />;
+      case "REJECTED":
+        return <X className="h-4 w-4 mr-1.5" />;
+      case "PENDING":
+        return <Clock className="h-4 w-4 mr-1.5" />;
+      default:
+        return null;
+    }
+  };
+
+  const formatStatusText = (status: string) => {
+    return status === "APPROVED"
+      ? "Approved"
+      : status === "REJECTED"
+      ? "Rejected"
+      : status === "PENDING"
+      ? "Pending"
+      : status;
+  };
+
   const handleViewDetails = (application: SellerApplication) => {
     setSelectedApplication(application);
     setIsViewDialogOpen(true);
@@ -108,7 +131,7 @@ const SellerApplications = () => {
     try {
       await axios.put(
         `${API_BASE_URL}/${application.applicationId}`,
-        {}, // Empty body
+        {},
         {
           params: {
             status: "APPROVED",
@@ -138,7 +161,7 @@ const SellerApplications = () => {
     try {
       await axios.put(
         `${API_BASE_URL}/${application.applicationId}`,
-        {}, // Empty body
+        {},
         {
           params: {
             status: "REJECTED",
@@ -176,22 +199,20 @@ const SellerApplications = () => {
             <img
               src={row.user.avatarUrl}
               alt={`${row.user.firstName} ${row.user.lastName}`}
-              className="h-8 w-8 rounded-full mr-3"
+              className="h-10 w-10 rounded-full mr-3"
             />
           ) : (
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mr-3">
               <span className="text-primary font-medium">
                 {row.user.firstName?.charAt(0) || "A"}
               </span>
             </div>
           )}
           <div>
-            <div className="font-medium">
+            <div className="font-medium text-[#5A3A31]">
               {row.user.firstName} {row.user.lastName}
             </div>
-            <div className="text-sm text-muted-foreground">
-              {row.user.email}
-            </div>
+            <div className="text-sm text-[#5A3A31]/70">{row.user.email}</div>
           </div>
         </div>
       ),
@@ -201,47 +222,33 @@ const SellerApplications = () => {
       id: "submittedAt",
       header: "Submitted",
       cell: (row: SellerApplication) => (
-        <div className="text-sm">{formatDate(row.appliedAt)}</div>
+        <div className="text-sm text-[#5A3A31]">
+          {formatDate(row.appliedAt)}
+        </div>
       ),
       sortable: true,
     },
     {
       id: "status",
       header: "Status",
-      cell: (row: SellerApplication) => {
-        let icon;
-
-        switch (row.status) {
-          case "APPROVED":
-            icon = <BadgeCheck className="h-4 w-4 mr-1 text-success" />;
-            break;
-          case "REJECTED":
-            icon = <X className="h-4 w-4 mr-1" />;
-            break;
-          case "PENDING":
-            icon = <Clock className="h-4 w-4 mr-1 text-muted-foreground" />;
-            break;
-        }
-
-        return (
-          <div className="flex items-center">
-            <StatusBadge
-              variant={getStatusVariant(row.status)}
-              className="gap-1"
-            >
-              {icon}
-              {row.status.charAt(0) + row.status.slice(1).toLowerCase()}
-            </StatusBadge>
-          </div>
-        );
-      },
+      cell: (row: SellerApplication) => (
+        <div className="flex items-center">
+          <StatusBadge
+            variant={getStatusVariant(row.status)}
+            className="text-sm py-1.5 px-3 h-7 flex items-center"
+          >
+            {getStatusIcon(row.status)}
+            {formatStatusText(row.status)}
+          </StatusBadge>
+        </div>
+      ),
       sortable: true,
     },
     {
       id: "approvedAt",
       header: "Processed Date",
       cell: (row: SellerApplication) => (
-        <div className="text-sm">
+        <div className="text-sm text-[#5A3A31]">
           {row.approvedAt ? formatDate(row.approvedAt) : "Not processed"}
         </div>
       ),
@@ -252,10 +259,10 @@ const SellerApplications = () => {
   return (
     <MainLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="text-2xl font-bold tracking-tight text-[#5A3A31]">
           Seller Applications
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-[#5A3A31]/70">
           Review and approve seller applications
         </p>
       </div>
@@ -264,16 +271,18 @@ const SellerApplications = () => {
         <Card className="p-4 bg-white shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Total</p>
-              <h3 className="text-2xl font-bold">{statusCounts.total}</h3>
+              <p className="text-sm font-medium text-[#5A3A31]/70">Total</p>
+              <h3 className="text-2xl font-bold text-[#5A3A31]">
+                {statusCounts.total}
+              </h3>
             </div>
-            <div className="p-2 bg-muted rounded-full">
-              <Briefcase className="h-5 w-5" />
+            <div className="p-2 bg-[#AA8F66]/10 rounded-full">
+              <Briefcase className="h-5 w-5 text-[#AA8F66]" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-4 bg-amber-50 shadow-sm border-amber-200">
+        <Card className="p-4 bg-amber-50 shadow-sm border border-amber-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-amber-700">Pending</p>
@@ -287,7 +296,7 @@ const SellerApplications = () => {
           </div>
         </Card>
 
-        <Card className="p-4 bg-green-50 shadow-sm border-green-200">
+        <Card className="p-4 bg-green-50 shadow-sm border border-green-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-green-700">Approved</p>
@@ -301,7 +310,7 @@ const SellerApplications = () => {
           </div>
         </Card>
 
-        <Card className="p-4 bg-red-50 shadow-sm border-red-200">
+        <Card className="p-4 bg-red-50 shadow-sm border border-red-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-red-700">Rejected</p>
@@ -328,8 +337,10 @@ const SellerApplications = () => {
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Seller Application</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-[#5A3A31]">
+              Seller Application
+            </DialogTitle>
+            <DialogDescription className="text-[#5A3A31]/70">
               Review the seller application details.
             </DialogDescription>
           </DialogHeader>
@@ -337,60 +348,58 @@ const SellerApplications = () => {
           {selectedApplication && (
             <div className="space-y-4">
               <div className="flex items-center">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                  <span className="text-primary font-medium">
+                <div className="h-12 w-12 rounded-full bg-[#AA8F66]/10 flex items-center justify-center mr-3">
+                  <span className="text-[#5A3A31] font-medium">
                     {selectedApplication.user.firstName?.charAt(0) || "A"}
                   </span>
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold">
+                  <h3 className="text-lg font-semibold text-[#5A3A31]">
                     {selectedApplication.user.firstName}{" "}
                     {selectedApplication.user.lastName}
                   </h3>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-[#5A3A31]/70">
                     Applied on {formatDate(selectedApplication.appliedAt)}
                   </p>
                 </div>
                 <StatusBadge
                   variant={getStatusVariant(selectedApplication.status)}
-                  className="ml-auto capitalize"
+                  className="ml-auto text-sm py-1.5 px-3 h-7 flex items-center"
                 >
-                  {selectedApplication.status.charAt(0) +
-                    selectedApplication.status.slice(1).toLowerCase()}
+                  {getStatusIcon(selectedApplication.status)}
+                  {formatStatusText(selectedApplication.status)}
                 </StatusBadge>
               </div>
 
-              <Separator />
+              <Separator className="bg-[#AA8F66]/10" />
 
               <div className="grid grid-cols-1 gap-3">
                 <div className="bg-[#f5f0ea] p-4 rounded-lg">
                   <div className="flex items-start">
-                    <User className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <User className="h-5 w-5 mr-2 text-[#AA8F66]" />
                     <div>
-                      <Label className="text-sm text-muted-foreground font-medium">
+                      <Label className="text-sm text-[#5A3A31]/70 font-medium">
                         Personal Information
                       </Label>
                       <div className="grid grid-cols-2 gap-2 mt-1">
                         <div>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-[#5A3A31]/70">
                             First Name
                           </p>
-                          <p className="font-medium">
+                          <p className="font-medium text-[#5A3A31]">
                             {selectedApplication.user.firstName}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">
-                            Last Name
-                          </p>
-                          <p className="font-medium">
+                          <p className="text-xs text-[#5A3A31]/70">Last Name</p>
+                          <p className="font-medium text-[#5A3A31]">
                             {selectedApplication.user.lastName}
                           </p>
                         </div>
                       </div>
                       <div className="mt-2">
-                        <p className="text-xs text-muted-foreground">Email</p>
-                        <p className="font-medium">
+                        <p className="text-xs text-[#5A3A31]/70">Email</p>
+                        <p className="font-medium text-[#5A3A31]">
                           {selectedApplication.user.email}
                         </p>
                       </div>
@@ -401,18 +410,18 @@ const SellerApplications = () => {
                 {selectedApplication.status !== "PENDING" && (
                   <div className="bg-[#f5f0ea] p-4 rounded-lg">
                     <div className="flex items-start">
-                      <FileText className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <FileText className="h-5 w-5 mr-2 text-[#AA8F66]" />
                       <div>
-                        <Label className="text-sm text-muted-foreground font-medium">
+                        <Label className="text-sm text-[#5A3A31]/70 font-medium">
                           Processing Information
                         </Label>
                         <div className="mt-1">
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-[#5A3A31]/70">
                             {selectedApplication.status === "APPROVED"
                               ? "Approved On"
                               : "Rejected On"}
                           </p>
-                          <p className="font-medium">
+                          <p className="font-medium text-[#5A3A31]">
                             {selectedApplication.approvedAt
                               ? formatDate(selectedApplication.approvedAt)
                               : "Not recorded"}
@@ -420,10 +429,10 @@ const SellerApplications = () => {
                         </div>
                         {selectedApplication.admin && (
                           <div className="mt-2">
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-[#5A3A31]/70">
                               Processed By Admin ID
                             </p>
-                            <p className="font-medium">
+                            <p className="font-medium text-[#5A3A31]">
                               {selectedApplication.admin.id}
                             </p>
                           </div>
@@ -449,7 +458,7 @@ const SellerApplications = () => {
                 </Button>
                 <Button
                   onClick={() => handleApprove(selectedApplication)}
-                  className="gap-1 rounded-md bg-[#5A3A31] hover:bg-[#4a2a21]"
+                  className="gap-1 rounded-md bg-[#5A3A31] hover:bg-[#4a2a21] text-white"
                 >
                   <BadgeCheck className="h-4 w-4" />
                   Approve

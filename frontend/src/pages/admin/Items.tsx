@@ -11,13 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,8 +19,16 @@ import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/custom-badge";
 import { Badge } from "@/components/ui/badge";
 import axios from "axios";
-import { Separator } from "@radix-ui/react-dropdown-menu";
-import { BadgeCheck, FileText, X } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import {
+  BadgeCheck,
+  FileText,
+  X,
+  Tag,
+  DollarSign,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
 
 const API_BASE_URL = "http://localhost:8080/api/item";
 
@@ -52,11 +53,11 @@ const Items = () => {
       const response = await axios.get(API_BASE_URL);
       const items = response.data?.data || [];
       setItemsData(items);
-      return items; // Return the fetched items
+      return items;
     } catch (error) {
       console.error("Error fetching items:", error);
       toast.error("Failed to fetch items");
-      return []; // Return an empty array in case of an error
+      return [];
     }
   };
 
@@ -69,6 +70,50 @@ const Items = () => {
     setIsViewDialogOpen(true);
   };
 
+  const getStatusVariant = (status) => {
+    switch (status) {
+      case "APPROVED":
+        return "success";
+      case "REJECTED":
+        return "rejected";
+      case "PENDING":
+        return "pending";
+      case "SOLD":
+        return "info";
+      case "EXPIRED":
+        return "inactive";
+      default:
+        return "default";
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case "APPROVED":
+        return <BadgeCheck className="h-4 w-4 mr-1" />;
+      case "REJECTED":
+        return <X className="h-4 w-4 mr-1" />;
+      case "PENDING":
+        return <Clock className="h-4 w-4 mr-1" />;
+      case "SOLD":
+        return <AlertTriangle className="h-4 w-4 mr-1" />;
+      default:
+        return null;
+    }
+  };
+
+  const formatStatusText = (status) => {
+    return status === "APPROVED"
+      ? "Approved"
+      : status === "REJECTED"
+      ? "Rejected"
+      : status === "PENDING"
+      ? "Pending"
+      : status === "SOLD"
+      ? "Sold"
+      : status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  };
+
   const handleStatusUpdate = async (newStatus) => {
     if (!selectedItem) {
       toast.error("No item selected");
@@ -76,13 +121,22 @@ const Items = () => {
     }
 
     try {
-      await axios.put(`${API_BASE_URL}/${selectedItem.id}/status`, {
-        adminId: 1, // Replace with the actual admin ID
-        status: newStatus,
-      });
+      await axios.put(
+        `${API_BASE_URL}/${selectedItem.id}/status`,
+        {
+          adminid: 1,
+          status: newStatus,
+        },
+        {
+          params: {
+            adminId: 1,
+            status: newStatus,
+          },
+        }
+      );
       toast.success("Item status updated successfully");
-      fetchItems(); // Refresh the items list
-      setIsViewDialogOpen(false); // Close the dialog
+      fetchItems();
+      setIsViewDialogOpen(false);
     } catch (error) {
       console.error("Error updating item status:", error);
       toast.error("Failed to update item status");
@@ -110,8 +164,8 @@ const Items = () => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       toast.success("Item added successfully");
-      fetchItems(); // Refresh the items list
-      setIsAddDialogOpen(false); // Close the dialog
+      fetchItems();
+      setIsAddDialogOpen(false);
       setNewItem({
         name: "",
         description: "",
@@ -135,19 +189,24 @@ const Items = () => {
         <div className="flex items-center">
           {row.imageBase64 ? (
             <div
-              className="h-10 w-10 rounded-md bg-cover bg-center mr-3"
+              className="h-12 w-12 rounded-lg bg-cover bg-center mr-3 border border-[#AA8F66]/20 shadow-sm overflow-hidden"
               style={{ backgroundImage: `url(${row.imageBase64})` }}
             />
           ) : (
-            <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center mr-3">
-              <span className="text-primary font-medium">
+            <div className="h-12 w-12 rounded-lg bg-[#AA8F66]/10 flex items-center justify-center mr-3 border border-[#AA8F66]/20">
+              <span className="text-[#AA8F66] font-medium">
                 {row.name.charAt(0)}
               </span>
             </div>
           )}
           <div>
-            <div className="font-medium truncate max-w-[200px]">{row.name}</div>
-            <div className="text-sm text-muted-foreground">ID: {row.id}</div>
+            <div className="font-medium truncate max-w-[200px] text-[#5A3A31]">
+              {row.name}
+            </div>
+            <div className="text-sm text-[#5A3A31]/70 flex items-center">
+              <Tag size={12} className="mr-1 text-[#AA8F66]" />
+              {row.category?.name}
+            </div>
           </div>
         </div>
       ),
@@ -157,29 +216,34 @@ const Items = () => {
       id: "startingPrice",
       header: "Starting Price",
       cell: (row) => (
-        <div className="font-medium">${row.startingPrice.toLocaleString()}</div>
+        <div className="font-medium text-[#5A3A31] flex items-center">
+          <DollarSign size={14} className="mr-1 text-[#AA8F66]" />
+          {row.startingPrice.toLocaleString()}
+        </div>
       ),
-      sortable: true,
-    },
-    {
-      id: "category",
-      header: "Category",
-      cell: (row) => <Badge variant="outline">{row.category?.name}</Badge>,
       sortable: true,
     },
     {
       id: "seller",
       header: "Seller",
-      cell: (row) => <div className="text-sm">{row.seller?.username}</div>,
+      cell: (row) => (
+        <div className="text-sm text-[#5A3A31]">{row.seller?.username}</div>
+      ),
       sortable: true,
     },
     {
       id: "status",
       header: "Status",
       cell: (row) => (
-        <StatusBadge variant={row.status.toLowerCase()}>
-          {row.status}
-        </StatusBadge>
+        <div className="flex items-center">
+          <StatusBadge
+            variant={getStatusVariant(row.status)}
+            className="text-xs py-0.5 px-2 h-5 flex items-center"
+          >
+            {getStatusIcon(row.status)}
+            {formatStatusText(row.status)}
+          </StatusBadge>
+        </div>
       ),
       sortable: true,
     },
@@ -189,8 +253,10 @@ const Items = () => {
     <MainLayout>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Items</h1>
-          <p className="text-muted-foreground">Manage auction items</p>
+          <h1 className="text-2xl font-bold tracking-tight text-[#5A3A31]">
+            Items
+          </h1>
+          <p className="text-[#5A3A31]/70">Manage auction items</p>
         </div>
       </div>
 
@@ -316,50 +382,52 @@ const Items = () => {
 
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold">{selectedItem.name}</h3>
-                  <p className="text-sm text-muted-foreground">
+                  <h3 className="text-lg font-semibold text-[#5A3A31]">
+                    {selectedItem.name}
+                  </h3>
+                  <p className="text-sm text-[#5A3A31]/70">
                     ID: {selectedItem.id}
                   </p>
                 </div>
-                <StatusBadge variant={selectedItem.status.toLowerCase()}>
-                  {selectedItem.status}
+                <StatusBadge
+                  variant={getStatusVariant(selectedItem.status)}
+                  className="text-xs py-0.5 px-2 h-5 flex items-center"
+                >
+                  {getStatusIcon(selectedItem.status)}
+                  {formatStatusText(selectedItem.status)}
                 </StatusBadge>
               </div>
 
-              <Separator />
+              <Separator className="bg-[#AA8F66]/10" />
 
               <div className="grid grid-cols-1 gap-3">
                 <div className="bg-[#f5f0ea] p-4 rounded-lg">
                   <div className="flex items-start">
-                    <FileText className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <FileText className="h-5 w-5 mr-2 text-[#AA8F66]" />
                     <div className="w-full">
-                      <Label className="text-sm text-muted-foreground font-medium">
+                      <Label className="text-sm text-[#5A3A31]/70 font-medium">
                         Item Information
                       </Label>
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div>
-                          <p className="text-xs text-muted-foreground">
-                            Category
-                          </p>
-                          <p className="font-medium">
+                          <p className="text-xs text-[#5A3A31]/70">Category</p>
+                          <p className="font-medium text-[#5A3A31]">
                             {selectedItem.category?.name}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">
-                            Seller
-                          </p>
-                          <p className="font-medium">
+                          <p className="text-xs text-[#5A3A31]/70">Seller</p>
+                          <p className="font-medium text-[#5A3A31]">
                             {selectedItem.seller?.username}
                           </p>
                         </div>
                       </div>
                       <div className="mt-2">
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-[#5A3A31]/70">
                           Starting Price
                         </p>
-                        <p className="font-medium">
-                          ${selectedItem.startingPrice}
+                        <p className="font-medium text-[#5A3A31]">
+                          ${selectedItem.startingPrice.toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -368,12 +436,14 @@ const Items = () => {
 
                 <div className="bg-[#f5f0ea] p-4 rounded-lg">
                   <div className="flex items-start">
-                    <FileText className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <FileText className="h-5 w-5 mr-2 text-[#AA8F66]" />
                     <div>
-                      <Label className="text-sm text-muted-foreground font-medium">
+                      <Label className="text-sm text-[#5A3A31]/70 font-medium">
                         Description
                       </Label>
-                      <p className="mt-1 text-sm">{selectedItem.description}</p>
+                      <p className="mt-1 text-sm text-[#5A3A31]">
+                        {selectedItem.description}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -394,7 +464,7 @@ const Items = () => {
                 </Button>
                 <Button
                   onClick={() => handleStatusUpdate("APPROVED")}
-                  className="gap-1 rounded-md bg-[#5A3A31] hover:bg-[#4a2a21]"
+                  className="gap-1 rounded-md bg-[#5A3A31] hover:bg-[#4a2a21] text-white"
                 >
                   <BadgeCheck className="h-4 w-4" />
                   Approve

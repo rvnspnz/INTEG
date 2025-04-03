@@ -61,10 +61,10 @@ const Items = () => {
       const items =
         response.data?.data.map((item) => ({
           ...item,
-          startTime: item.start_time,
-          endTime: item.end_time,
-          auctionStatus: item.auction_status || "NOT_STARTED",
-          createdAt: item.created_at,
+          startTime: item.start_time || item.startTime, // Check both possible field names
+          endTime: item.end_time || item.endTime,     // Check both possible field names
+          auctionStatus: item.auction_status || item.auctionStatus || "NOT_STARTED",
+          createdAt: item.created_at || item.createdAt,
         })) || [];
       setItemsData(items);
       return items;
@@ -76,7 +76,17 @@ const Items = () => {
   };
 
   useEffect(() => {
-    fetchItems();
+    fetchItems().then(items => {
+      console.log("Fetched items:", items);
+      if (items.length > 0) {
+        console.log("First item's time fields:", {
+          startTime: items[0].startTime,
+          endTime: items[0].endTime,
+          start_time: items[0].start_time,
+          end_time: items[0].end_time
+        });
+      }
+    });
   }, []);
 
   const handleViewDetails = (item) => {
@@ -89,15 +99,21 @@ const Items = () => {
       toast.error("No item selected");
       return;
     }
-
+  
     try {
+      // Change this API call to match the backend endpoint
       await axios.put(`${API_BASE_URL}/${selectedItem.id}/status`, {
-        adminId: 1, // Replace with actual admin ID
+        adminid: 1, // Replace with the actual admin ID
         status: newStatus,
+      }, {
+        params: {  // Send as query parameters instead of request body
+          adminId: 1,
+          status: newStatus
+        }
       });
       toast.success("Item status updated successfully");
-      fetchItems();
-      setIsViewDialogOpen(false);
+      fetchItems(); // Refresh the items list
+      setIsViewDialogOpen(false); // Close the dialog
     } catch (error) {
       console.error("Error updating item status:", error);
       toast.error("Failed to update item status");
@@ -135,6 +151,8 @@ const Items = () => {
     }
   };
 
+  
+
   const handleAddItem = () => setIsAddDialogOpen(true);
 
   const handleAddItemSubmit = async () => {
@@ -146,8 +164,14 @@ const Items = () => {
     formData.append("sellerId", newItem.sellerId);
     formData.append("categoryId", newItem.categoryId);
     if (newItem.image) formData.append("image", newItem.image);
-    if (newItem.startTime) formData.append("startTime", newItem.startTime);
-    if (newItem.endTime) formData.append("endTime", newItem.endTime);
+    if (newItem.startTime) {
+      const startDate = new Date(newItem.startTime);
+      formData.append("startTime", startDate.toISOString().slice(0, 19).replace('T', ' '));
+    }
+    if (newItem.endTime) {
+      const endDate = new Date(newItem.endTime);
+      formData.append("endTime", endDate.toISOString().slice(0, 19).replace('T', ' '));
+    }
 
     try {
       await axios.post(API_BASE_URL, formData, {
@@ -174,15 +198,34 @@ const Items = () => {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return "Not set";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    if (!dateString || dateString === "null" || dateString === "NULL") return "Not set";
+    
+    try {
+      // Handle different possible date formats
+      let date;
+      if (dateString.includes('T')) {
+        date = new Date(dateString);
+      } else if (dateString.includes(' ')) {
+        // MySQL format: "YYYY-MM-DD HH:MM:SS"
+        date = new Date(dateString.replace(' ', 'T') + 'Z');
+      } else {
+        // Fallback for other formats
+        date = new Date(dateString);
+      }
+      
+      if (isNaN(date.getTime())) return "Invalid date";
+      
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      console.error("Error formatting date:", dateString, e);
+      return "Invalid date";
+    }
   };
 
   const getStatusVariant = (status, auctionStatus) => {
@@ -249,14 +292,22 @@ const Items = () => {
     },
     {
       id: "auctionTiming",
-      header: "Auction Timing",
-      cell: (row) => (
-        <div className="text-sm text-[#5A3A31]">
-          {row.startTime ? formatDate(row.startTime) : "Not scheduled"}
-        </div>
-      ),
-      sortable: true,
-    },
+  header: "Auction Timing",
+  cell: (row) => (
+    <div className="text-sm text-[#5A3A31]">
+      {row.startTime ? formatDate(row.startTime) : "Not scheduled"}
+      {row.endTime && (
+        <>
+          <br />
+          <span className="text-xs text-[#5A3A31]/70">
+            to {formatDate(row.endTime)}
+          </span>
+        </>
+      )}
+    </div>
+  ),
+  sortable: true,
+},
     {
       id: "status",
       header: "Status",
@@ -417,12 +468,13 @@ const Items = () => {
               <div>
                 <Label>Auction Start Time</Label>
                 <Input
-                  type="datetime-local"
-                  value={newItem.startTime}
-                  onChange={(e) =>
-                    setNewItem({ ...newItem, startTime: e.target.value })
-                  }
-                />
+                type="datetime-local"
+                value={newItem.startTime ? new Date(newItem.startTime).toISOString().slice(0, 16) : ""}
+                onChange={(e) => {
+                  const date = new Date(e.target.value);
+                  setNewItem({ ...newItem, startTime: date.toISOString() });
+                  }}
+                  />
               </div>
               <div>
                 <Label>Auction End Time</Label>
@@ -574,22 +626,20 @@ const Items = () => {
                     <Calendar className="h-5 w-5 mr-2 text-[#AA8F66]" />
                     <div className="w-full">
                       <Label className="text-sm text-[#5A3A31]/70 font-medium">
-                        Auction Timing
+                      Auction Timing
                       </Label>
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div>
-                          <p className="text-xs text-[#5A3A31]/70">
-                            Start Time
-                          </p>
+                          <p className="text-xs text-[#5A3A31]/70">Start Time</p>
                           <p className="font-medium text-[#5A3A31]">
-                            {formatDate(selectedItem.startTime)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-[#5A3A31]/70">End Time</p>
-                          <p className="font-medium text-[#5A3A31]">
-                            {formatDate(selectedItem.endTime)}
-                          </p>
+                            {selectedItem.startTime ? formatDate(selectedItem.startTime) : "Not set"}
+                            </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-[#5A3A31]/70">End Time</p>
+                              <p className="font-medium text-[#5A3A31]">
+                                {selectedItem.endTime ? formatDate(selectedItem.endTime) : "Not set"}
+                                </p>
                         </div>
                       </div>
                     </div>
