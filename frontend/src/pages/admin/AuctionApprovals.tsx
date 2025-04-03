@@ -1,22 +1,4 @@
-import { useState } from "react";
-import {
-  BadgeCheck,
-  Clock,
-  X,
-  AlertTriangle,
-  ArrowUpDown,
-  DollarSign,
-  Calendar,
-  Tag,
-  User,
-  FileText,
-  Image,
-  Filter,
-  Gavel,
-  SlidersHorizontal,
-  ListChecks,
-  ShoppingCart
-} from "lucide-react";
+import { useState, useEffect } from "react";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,86 +11,210 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { AuctionItem } from "@/lib/types";
-import { auctionItems } from "@/lib/data";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import MainLayout from "@/components/Layout/MainLayout";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
+import {
+  BadgeCheck,
+  Clock,
+  X,
+  AlertTriangle,
+  ArrowUpDown,
+  DollarSign,
+  Calendar,
+  Tag,
+  User,
+  FileText,
+  Image as ImageIcon,
+  Gavel,
+} from "lucide-react";
+import axios from "axios";
 import { StatusBadge } from "@/components/ui/custom-badge";
 
-const AuctionApprovals = () => {
-  const [itemsData, setItemsData] = useState<AuctionItem[]>(auctionItems);
-  const [selectedItem, setSelectedItem] = useState<AuctionItem | null>(null);
+const API_BASE_URL = "http://localhost:8080/api/item";
+
+const Items = () => {
+  const [itemsData, setItemsData] = useState([]);
+  const [selectedItem, setSelectedItem] = useState(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [newItem, setNewItem] = useState({
+    name: "",
+    description: "",
+    startingPrice: "",
+    bidIncrement: "",
+    sellerId: "",
+    categoryId: "",
+    image: null,
+    startTime: "",
+    endTime: "",
+  });
 
-  // Count items by status
-  const statusCounts = itemsData.reduce((acc, item) => {
-    acc[item.status] = (acc[item.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Helper function to map application status to StatusBadge variant
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "approved":
-        return "success";
-      case "rejected":
-        return "rejected";
-      case "pending":
-        return "pending";
-      case "sold":
-        return "warning";
-      default:
-        return "default";
+  // Fetch items with auction details
+  const fetchItems = async () => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}?includeAuctionDetails=true`
+      );
+      const items =
+        response.data?.data.map((item) => ({
+          ...item,
+          startTime: item.start_time,
+          endTime: item.end_time,
+          auctionStatus: item.auction_status || "NOT_STARTED",
+          createdAt: item.created_at,
+        })) || [];
+      setItemsData(items);
+      return items;
+    } catch (error) {
+      console.error("Error fetching items:", error);
+      toast.error("Failed to fetch items");
+      return [];
     }
   };
 
-  const handleViewDetails = (item: AuctionItem) => {
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const handleViewDetails = (item) => {
     setSelectedItem(item);
     setIsViewDialogOpen(true);
   };
 
-  const handleApprove = (item: AuctionItem) => {
-    setItemsData(
-      itemsData.map((i) =>
-        i.id === item.id ? { ...i, status: "approved" } : i
-      )
-    );
+  const handleStatusUpdate = async (newStatus) => {
+    if (!selectedItem) {
+      toast.error("No item selected");
+      return;
+    }
 
-    toast.success(`${item.name} has been approved for auction`);
-    setIsViewDialogOpen(false);
+    try {
+      await axios.put(`${API_BASE_URL}/${selectedItem.id}/status`, {
+        adminId: 1, // Replace with actual admin ID
+        status: newStatus,
+      });
+      toast.success("Item status updated successfully");
+      fetchItems();
+      setIsViewDialogOpen(false);
+    } catch (error) {
+      console.error("Error updating item status:", error);
+      toast.error("Failed to update item status");
+    }
   };
 
-  const handleReject = (item: AuctionItem) => {
-    setItemsData(
-      itemsData.map((i) =>
-        i.id === item.id ? { ...i, status: "rejected" } : i
-      )
-    );
+  const handleApprove = async () => await handleStatusUpdate("APPROVED");
+  const handleReject = async () => await handleStatusUpdate("REJECTED");
 
-    toast.success(`${item.name} has been rejected from auction`);
-    setIsViewDialogOpen(false);
+  const handleAuctionStatusUpdate = async (newAuctionStatus) => {
+    if (!selectedItem) return;
+
+    try {
+      const payload = {
+        status: newAuctionStatus,
+        ...(newAuctionStatus === "ACTIVE" && {
+          startTime: new Date().toISOString(),
+          endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+        }),
+        ...(newAuctionStatus === "ENDED" && {
+          endTime: new Date().toISOString(),
+        }),
+      };
+
+      await axios.put(
+        `${API_BASE_URL}/${selectedItem.id}/auction-status`,
+        payload
+      );
+      toast.success(`Auction ${newAuctionStatus.toLowerCase()} successfully`);
+      fetchItems();
+      setIsViewDialogOpen(false);
+    } catch (error) {
+      console.error("Error updating auction status:", error);
+      toast.error(`Failed to ${newAuctionStatus.toLowerCase()} auction`);
+    }
   };
 
-  const formatDate = (date: Date | undefined) => {
-    if (!date) return "Not set";
-    return new Date(date).toLocaleDateString("en-US", {
+  const handleAddItem = () => setIsAddDialogOpen(true);
+
+  const handleAddItemSubmit = async () => {
+    const formData = new FormData();
+    formData.append("name", newItem.name);
+    formData.append("description", newItem.description);
+    formData.append("startingPrice", newItem.startingPrice);
+    formData.append("bidIncrement", newItem.bidIncrement);
+    formData.append("sellerId", newItem.sellerId);
+    formData.append("categoryId", newItem.categoryId);
+    if (newItem.image) formData.append("image", newItem.image);
+    if (newItem.startTime) formData.append("startTime", newItem.startTime);
+    if (newItem.endTime) formData.append("endTime", newItem.endTime);
+
+    try {
+      await axios.post(API_BASE_URL, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success("Item added successfully");
+      fetchItems();
+      setIsAddDialogOpen(false);
+      setNewItem({
+        name: "",
+        description: "",
+        startingPrice: "",
+        bidIncrement: "",
+        sellerId: "",
+        categoryId: "",
+        image: null,
+        startTime: "",
+        endTime: "",
+      });
+    } catch (error) {
+      console.error("Error adding item:", error);
+      toast.error("Failed to add item");
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "Not set";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
+  };
+
+  const getStatusVariant = (status, auctionStatus) => {
+    if (auctionStatus === "ACTIVE") return "active";
+    if (auctionStatus === "ENDED") return "inactive"; // Return "inactive" instead of "ended"
+
+    switch (status) {
+      case "APPROVED":
+        return "success";
+      case "REJECTED":
+        return "rejected";
+      case "PENDING":
+        return "pending";
+      case "SOLD":
+        return "info";
+      case "EXPIRED":
+        return "inactive";
+      default:
+        return "default";
+    }
   };
 
   const columns = [
     {
       id: "name",
       header: "Item",
-      cell: (row: AuctionItem) => (
+      cell: (row) => (
         <div className="flex items-center">
-          {row.imageUrl ? (
+          {row.imageBase64 ? (
             <div
               className="h-12 w-12 rounded-lg bg-cover bg-center mr-3 border border-[#AA8F66]/20 shadow-sm overflow-hidden"
-              style={{ backgroundImage: `url(${row.imageUrl})` }}
+              style={{ backgroundImage: `url(${row.imageBase64})` }}
             />
           ) : (
             <div className="h-12 w-12 rounded-lg bg-[#AA8F66]/10 flex items-center justify-center mr-3 border border-[#AA8F66]/20">
@@ -118,10 +224,12 @@ const AuctionApprovals = () => {
             </div>
           )}
           <div>
-            <div className="font-medium truncate max-w-[200px] text-[#5A3A31]">{row.name}</div>
+            <div className="font-medium truncate max-w-[200px] text-[#5A3A31]">
+              {row.name}
+            </div>
             <div className="text-sm text-[#5A3A31]/70 flex items-center">
               <Tag size={12} className="mr-1 text-[#AA8F66]" />
-              {row.category}
+              {row.category?.name}
             </div>
           </div>
         </div>
@@ -129,34 +237,22 @@ const AuctionApprovals = () => {
       sortable: true,
     },
     {
-      id: "price",
-      header: "Starting Bid",
-      cell: (row: AuctionItem) => (
+      id: "startingPrice",
+      header: "Starting Price",
+      cell: (row) => (
         <div className="font-medium text-[#5A3A31] flex items-center">
           <DollarSign size={14} className="mr-1 text-[#AA8F66]" />
-          {row.startingBid.toLocaleString()}
+          {row.startingPrice.toLocaleString()}
         </div>
       ),
       sortable: true,
     },
     {
-      id: "sellerName",
-      header: "Seller",
-      cell: (row: AuctionItem) => (
-        <div className="text-sm text-[#5A3A31] flex items-center">
-          <User size={14} className="mr-1 text-[#AA8F66]" />
-          {row.sellerName}
-        </div>
-      ),
-      sortable: true,
-    },
-    {
-      id: "createdAt",
-      header: "Submitted",
-      cell: (row: AuctionItem) => (
-        <div className="text-sm text-[#5A3A31] flex items-center">
-          <Calendar size={14} className="mr-1 text-[#AA8F66]" />
-          {new Date(row.createdAt).toLocaleDateString()}
+      id: "auctionTiming",
+      header: "Auction Timing",
+      cell: (row) => (
+        <div className="text-sm text-[#5A3A31]">
+          {row.startTime ? formatDate(row.startTime) : "Not scheduled"}
         </div>
       ),
       sortable: true,
@@ -164,32 +260,56 @@ const AuctionApprovals = () => {
     {
       id: "status",
       header: "Status",
-      cell: (row: AuctionItem) => {
+      cell: (row) => {
         let icon;
+        let statusText;
 
-        switch (row.status) {
-          case "approved":
-            icon = <BadgeCheck className="h-4 w-4 mr-1 text-success" />;
-            break;
-          case "rejected":
-            icon = <X className="h-4 w-4 mr-1" />;
-            break;
-          case "pending":
-            icon = <Clock className="h-4 w-4 mr-1 text-muted-foreground" />;
-            break;
-          case "sold":
-            icon = <AlertTriangle className="h-4 w-4 mr-1 text-warning" />;
-            break;
+        if (row.auctionStatus && row.auctionStatus !== "NOT_STARTED") {
+          statusText = row.auctionStatus;
+          switch (row.auctionStatus) {
+            case "ACTIVE":
+              icon = <Gavel className="h-4 w-4 mr-1 text-active" />;
+              statusText = "Auction Active";
+              break;
+            case "ENDED":
+              icon = <Clock className="h-4 w-4 mr-1 text-ended" />;
+              statusText = "Auction Ended";
+              break;
+          }
+        } else {
+          statusText = row.status;
+          switch (row.status) {
+            case "APPROVED":
+              icon = <BadgeCheck className="h-4 w-4 mr-1 text-success" />;
+              break;
+            case "REJECTED":
+              icon = <X className="h-4 w-4 mr-1 text-destructive" />;
+              break;
+            case "PENDING":
+              icon = <Clock className="h-4 w-4 mr-1 text-warning" />;
+              break;
+            case "SOLD":
+              icon = <AlertTriangle className="h-4 w-4 mr-1 text-primary" />;
+              break;
+            default:
+              icon = null;
+          }
         }
 
         return (
           <div className="flex items-center">
             <StatusBadge
-              variant={getStatusVariant(row.status)}
+              variant={getStatusVariant(row.status, row.auctionStatus)}
               className="gap-1"
             >
               {icon}
-              {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
+              {statusText
+                .split("_")
+                .map(
+                  (word) =>
+                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                )
+                .join(" ")}
             </StatusBadge>
           </div>
         );
@@ -200,288 +320,331 @@ const AuctionApprovals = () => {
 
   return (
     <MainLayout>
-      {/* Status Overview Cards */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-none shadow-md overflow-hidden relative group hover:shadow-lg transition-shadow">
-          <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
-          <div className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-xs text-[#5A3A31]/70 flex items-center">
-                  <Clock size={12} className="mr-1 text-amber-500" />
-                  Pending
-                </span>
-                <span className="text-2xl font-bold text-[#5A3A31]">
-                  {statusCounts["pending"] || 0}
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
-                <Clock size={20} />
-              </div>
-            </div>
-            <div className="mt-2 text-xs text-[#5A3A31]/70">Items awaiting review</div>
-          </div>
-        </Card>
-        
-        <Card className="border-none shadow-md overflow-hidden relative group hover:shadow-lg transition-shadow">
-          <div className="absolute top-0 left-0 w-1 h-full bg-[#AA8F66]"></div>
-          <div className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-xs text-[#5A3A31]/70 flex items-center">
-                  <BadgeCheck size={12} className="mr-1 text-[#AA8F66]" />
-                  Approved
-                </span>
-                <span className="text-2xl font-bold text-[#5A3A31]">
-                  {statusCounts["approved"] || 0}
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-[#AA8F66]/10 flex items-center justify-center text-[#AA8F66]">
-                <BadgeCheck size={20} />
-              </div>
-            </div>
-            <div className="mt-2 text-xs text-[#5A3A31]/70">Items approved for auction</div>
-          </div>
-        </Card>
-        
-        <Card className="border-none shadow-md overflow-hidden relative group hover:shadow-lg transition-shadow">
-          <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
-          <div className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-xs text-[#5A3A31]/70 flex items-center">
-                  <X size={12} className="mr-1 text-red-500" />
-                  Rejected
-                </span>
-                <span className="text-2xl font-bold text-[#5A3A31]">
-                  {statusCounts["rejected"] || 0}
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-500">
-                <X size={20} />
-              </div>
-            </div>
-            <div className="mt-2 text-xs text-[#5A3A31]/70">Items not meeting standards</div>
-          </div>
-        </Card>
-      </div>
-      
-      {/* Filter Bar */}
-      <div className="mb-4 flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-[#AA8F66]/10">
-        <div className="flex items-center text-[#5A3A31] space-x-2">
-          <Gavel size={18} className="text-[#AA8F66]" />
-          <h2 className="font-medium">Auction Items</h2>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" className="gap-1 border-[#AA8F66]/20 text-[#5A3A31] hover:bg-[#AA8F66]/5">
-            <Filter size={14} />
-            Filter
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1 border-[#AA8F66]/20 text-[#5A3A31] hover:bg-[#AA8F66]/5">
-            <SlidersHorizontal size={14} />
-            Sort
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1 border-[#AA8F66]/20 text-[#5A3A31] hover:bg-[#AA8F66]/5">
-            <ListChecks size={14} />
-            Columns
-          </Button>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Auction Items</h1>
+          <p className="text-muted-foreground">
+            Manage and approve auction items
+          </p>
         </div>
       </div>
 
-      <Card className="border-none shadow-md overflow-hidden">
+      <Card className="shadow-soft">
         <DataTable
           columns={columns}
-          data={itemsData}
+          fetchData={fetchItems}
           onView={handleViewDetails}
-          searchPlaceholder="Search items..."
         />
       </Card>
 
+      {/* Add Item Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Add Auction Item</DialogTitle>
+            <DialogDescription>
+              Enter details for the new auction item
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input
+                value={newItem.name}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, name: e.target.value })
+                }
+                placeholder="Item name"
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={newItem.description}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, description: e.target.value })
+                }
+                placeholder="Item description"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Starting Price</Label>
+                <Input
+                  type="number"
+                  value={newItem.startingPrice}
+                  onChange={(e) =>
+                    setNewItem({ ...newItem, startingPrice: e.target.value })
+                  }
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <Label>Bid Increment</Label>
+                <Input
+                  type="number"
+                  value={newItem.bidIncrement}
+                  onChange={(e) =>
+                    setNewItem({ ...newItem, bidIncrement: e.target.value })
+                  }
+                  placeholder="1.00"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Seller ID</Label>
+                <Input
+                  value={newItem.sellerId}
+                  onChange={(e) =>
+                    setNewItem({ ...newItem, sellerId: e.target.value })
+                  }
+                  placeholder="Seller ID"
+                />
+              </div>
+              <div>
+                <Label>Category ID</Label>
+                <Input
+                  value={newItem.categoryId}
+                  onChange={(e) =>
+                    setNewItem({ ...newItem, categoryId: e.target.value })
+                  }
+                  placeholder="Category ID"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Auction Start Time</Label>
+                <Input
+                  type="datetime-local"
+                  value={newItem.startTime}
+                  onChange={(e) =>
+                    setNewItem({ ...newItem, startTime: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Auction End Time</Label>
+                <Input
+                  type="datetime-local"
+                  value={newItem.endTime}
+                  onChange={(e) =>
+                    setNewItem({ ...newItem, endTime: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Image</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) =>
+                  setNewItem({ ...newItem, image: e.target.files[0] })
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddItemSubmit}>Add Item</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* View Item Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="sm:max-w-[650px] p-0 border-none overflow-hidden rounded-xl">
-          <div className="bg-gradient-to-r from-[#5A3A31] to-[#AA8F66] p-5 text-white relative">
-            <div className="absolute top-0 right-0 w-full h-full opacity-10">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full -mr-16 -mt-16"></div>
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/20 rounded-full -ml-12 -mb-12"></div>
-            </div>
-            <DialogHeader className="relative z-10">
-              <DialogTitle className="text-xl font-bold text-white flex items-center">
-                <Gavel className="mr-2 h-5 w-5" />
-                Auction Item Review
-              </DialogTitle>
-              <DialogDescription className="text-white/80">
-                Review the item details for auction approval.
-              </DialogDescription>
-            </DialogHeader>
-          </div>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Item Details</DialogTitle>
+            <DialogDescription>
+              Review and manage the auction item
+            </DialogDescription>
+          </DialogHeader>
 
           {selectedItem && (
-            <div className="p-6 bg-white">
-              <div className="space-y-4">
-                {selectedItem.imageUrl && (
-                  <div className="w-full h-56 rounded-lg overflow-hidden shadow-md border border-[#AA8F66]/20">
-                    <img
-                      src={selectedItem.imageUrl}
-                      alt={selectedItem.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
+            <div className="space-y-4">
+              {/* Item Image */}
+              <div className="w-full h-48 rounded-lg overflow-hidden shadow-sm border border-[#AA8F66]/20">
+                <img
+                  src={selectedItem.imageBase64}
+                  alt={selectedItem.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
 
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-[#5A3A31]">{selectedItem.name}</h3>
-                  <StatusBadge
-                    variant={getStatusVariant(selectedItem.status)}
-                    className="capitalize"
-                  >
-                    {selectedItem.status.charAt(0).toUpperCase() +
-                      selectedItem.status.slice(1)}
-                  </StatusBadge>
+              {/* Header with name and status */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#5A3A31]">
+                    {selectedItem.name}
+                  </h3>
+                  <p className="text-sm text-[#5A3A31]/70">
+                    ID: {selectedItem.id}
+                  </p>
+                </div>
+                <StatusBadge
+                  variant={getStatusVariant(
+                    selectedItem.status,
+                    selectedItem.auctionStatus
+                  )}
+                  className="capitalize"
+                >
+                  {selectedItem.auctionStatus !== "NOT_STARTED"
+                    ? selectedItem.auctionStatus
+                        .split("_")
+                        .map(
+                          (word) =>
+                            word.charAt(0).toUpperCase() +
+                            word.slice(1).toLowerCase()
+                        )
+                        .join(" ")
+                    : selectedItem.status.charAt(0).toUpperCase() +
+                      selectedItem.status.slice(1).toLowerCase()}
+                </StatusBadge>
+              </div>
+
+              <Separator className="bg-[#AA8F66]/10" />
+
+              {/* Information sections */}
+              <div className="grid grid-cols-1 gap-3">
+                {/* Item Information */}
+                <div className="bg-[#f5f0ea] p-4 rounded-lg">
+                  <div className="flex items-start">
+                    <FileText className="h-5 w-5 mr-2 text-[#AA8F66]" />
+                    <div className="w-full">
+                      <Label className="text-sm text-[#5A3A31]/70 font-medium">
+                        Item Information
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                          <p className="text-xs text-[#5A3A31]/70">Category</p>
+                          <p className="font-medium text-[#5A3A31]">
+                            {selectedItem.category?.name}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#5A3A31]/70">Seller</p>
+                          <p className="font-medium text-[#5A3A31]">
+                            {selectedItem.seller?.username}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-xs text-[#5A3A31]/70">
+                          Starting Price
+                        </p>
+                        <p className="font-medium text-[#5A3A31]">
+                          ${selectedItem.startingPrice.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-xs text-[#5A3A31]/70">
+                          Bid Increment
+                        </p>
+                        <p className="font-medium text-[#5A3A31]">
+                          ${selectedItem.bidIncrement.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <Separator className="bg-[#AA8F66]/10" />
-
-                <div className="grid grid-cols-1 gap-4">
+                {/* Description */}
+                <div className="bg-[#f5f0ea] p-4 rounded-lg">
                   <div className="flex items-start">
-                    <Image className="h-5 w-5 mr-2 text-[#AA8F66] mt-0.5" />
+                    <FileText className="h-5 w-5 mr-2 text-[#AA8F66]" />
                     <div>
-                      <Label className="text-[#5A3A31]/70">
-                        Item Details
+                      <Label className="text-sm text-[#5A3A31]/70 font-medium">
+                        Description
                       </Label>
-                      <p className="font-medium text-[#5A3A31]">{selectedItem.name}</p>
-                      <p className="text-sm text-[#5A3A31]/70 mt-1">
+                      <p className="mt-1 text-sm text-[#5A3A31]">
                         {selectedItem.description}
                       </p>
                     </div>
                   </div>
+                </div>
 
+                {/* Auction Timing */}
+                <div className="bg-[#f5f0ea] p-4 rounded-lg">
                   <div className="flex items-start">
-                    <Tag className="h-5 w-5 mr-2 text-[#AA8F66] mt-0.5" />
-                    <div>
-                      <Label className="text-[#5A3A31]/70">Category</Label>
-                      <p className="font-medium text-[#5A3A31]">{selectedItem.category}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-start">
-                      <DollarSign className="h-5 w-5 mr-2 text-[#AA8F66] mt-0.5" />
-                      <div>
-                        <Label className="text-[#5A3A31]/70">
-                          Starting Bid
-                        </Label>
-                        <p className="font-medium text-[#5A3A31]">
-                          ${selectedItem.startingBid.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start">
-                      <ArrowUpDown className="h-5 w-5 mr-2 text-[#AA8F66] mt-0.5" />
-                      <div>
-                        <Label className="text-[#5A3A31]/70">
-                          Current Bid
-                        </Label>
-                        <p className="font-medium text-[#5A3A31]">
-                          {selectedItem.currentBid
-                            ? `$${selectedItem.currentBid.toLocaleString()}`
-                            : "No bids yet"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-start">
-                      <Calendar className="h-5 w-5 mr-2 text-[#AA8F66] mt-0.5" />
-                      <div>
-                        <Label className="text-[#5A3A31]/70">
-                          Auction Start
-                        </Label>
-                        <p className="font-medium text-[#5A3A31]">
-                          {formatDate(selectedItem.auctionStart)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start">
-                      <Calendar className="h-5 w-5 mr-2 text-[#AA8F66] mt-0.5" />
-                      <div>
-                        <Label className="text-[#5A3A31]/70">
-                          Auction End
-                        </Label>
-                        <p className="font-medium text-[#5A3A31]">
-                          {formatDate(selectedItem.auctionEnd)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator className="bg-[#AA8F66]/10" />
-
-                  <div className="flex items-start">
-                    <User className="h-5 w-5 mr-2 text-[#AA8F66] mt-0.5" />
-                    <div>
-                      <Label className="text-[#5A3A31]/70">Seller</Label>
-                      <p className="font-medium text-[#5A3A31]">{selectedItem.sellerName}</p>
-                      <p className="text-sm text-[#5A3A31]/70">
-                        Seller ID: {selectedItem.sellerId}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start">
-                    <FileText className="h-5 w-5 mr-2 text-[#AA8F66] mt-0.5" />
-                    <div>
-                      <Label className="text-[#5A3A31]/70">
-                        Submission Details
+                    <Calendar className="h-5 w-5 mr-2 text-[#AA8F66]" />
+                    <div className="w-full">
+                      <Label className="text-sm text-[#5A3A31]/70 font-medium">
+                        Auction Timing
                       </Label>
-                      <p className="text-sm text-[#5A3A31]">
-                        Submitted on{" "}
-                        {new Date(selectedItem.createdAt).toLocaleDateString()}
-                      </p>
-                      <p className="text-sm text-[#5A3A31]/70 mt-1">
-                        This item has been reviewed and verified for authenticity.
-                        {selectedItem.status === "pending"
-                          ? " Awaiting final approval for auction."
-                          : ""}
-                      </p>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                          <p className="text-xs text-[#5A3A31]/70">
+                            Start Time
+                          </p>
+                          <p className="font-medium text-[#5A3A31]">
+                            {formatDate(selectedItem.startTime)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#5A3A31]/70">End Time</p>
+                          <p className="font-medium text-[#5A3A31]">
+                            {formatDate(selectedItem.endTime)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <DialogFooter className="mt-6 flex items-center gap-3 justify-end">
-                {selectedItem?.status === "pending" && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleReject(selectedItem)}
-                      className="gap-1 border-red-200 text-red-600 hover:bg-red-50"
-                    >
-                      <X className="h-4 w-4" />
-                      Reject
-                    </Button>
-                    <Button
-                      onClick={() => handleApprove(selectedItem)}
-                      className="gap-1 bg-gradient-to-r from-[#5A3A31] to-[#AA8F66] hover:opacity-90 text-white"
-                    >
-                      <BadgeCheck className="h-4 w-4" />
-                      Approve
-                    </Button>
-                  </>
-                )}
-                {selectedItem?.status !== "pending" && (
-                  <Button onClick={() => setIsViewDialogOpen(false)} className="bg-[#AA8F66] hover:bg-[#AA8F66]/90 text-white">Close</Button>
-                )}
-              </DialogFooter>
             </div>
           )}
+
+          <DialogFooter className="mt-4 flex space-x-2">
+            {selectedItem?.status === "PENDING" && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleReject}
+                  className="gap-1 rounded-md"
+                >
+                  <X className="h-4 w-4" />
+                  Reject
+                </Button>
+                <Button
+                  onClick={handleApprove}
+                  className="gap-1 rounded-md bg-[#5A3A31] hover:bg-[#4a2a21] text-white"
+                >
+                  <BadgeCheck className="h-4 w-4" />
+                  Approve
+                </Button>
+              </>
+            )}
+
+            {selectedItem?.status === "APPROVED" &&
+              selectedItem?.auctionStatus === "NOT_STARTED" && (
+                <Button
+                  onClick={() => handleAuctionStatusUpdate("ACTIVE")}
+                  className="gap-1 rounded-md bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Gavel className="h-4 w-4" />
+                  Start Auction
+                </Button>
+              )}
+
+            {selectedItem?.auctionStatus === "ACTIVE" && (
+              <Button
+                onClick={() => handleAuctionStatusUpdate("ENDED")}
+                className="gap-1 rounded-md bg-red-600 hover:bg-red-700 text-white"
+              >
+                <Clock className="h-4 w-4" />
+                End Auction
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </MainLayout>
   );
 };
 
-export default AuctionApprovals;
+export default Items;
