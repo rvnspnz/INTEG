@@ -33,6 +33,25 @@ public class SellerApplicationService {
     public Optional<SellerApplication> getApplicationById(Long id) {
         return sellerApplicationRepository.findById(id);
     }
+    
+    /**
+     * Check if a user already has a seller application
+     * @param userId The user ID to check
+     * @return true if the user has an application, false otherwise
+     */
+    public boolean hasApplicationByUserId(Long userId) {
+        // Find user first
+        Optional<User> userOptional = userRepository.findById(userId);
+        if (!userOptional.isPresent()) {
+            return false;
+        }
+        
+        User user = userOptional.get();
+        
+        // Find applications by user
+        List<SellerApplication> applications = sellerApplicationRepository.findByUser(user);
+        return !applications.isEmpty();
+    }
 
     @Transactional
     public SellerApplication createApplication(SellerApplicationRO applicationRO, HttpSession session) {
@@ -40,6 +59,11 @@ public class SellerApplicationService {
             User loggedInUser = (User) session.getAttribute("loggedInUser");
             if (loggedInUser == null) {
                 throw new RuntimeException("User is not logged in");
+            }
+
+            // Check if user already has an application
+            if (hasApplicationByUserId(loggedInUser.getId())) {
+                throw new RuntimeException("User already has a pending or approved application");
             }
 
             SellerApplication application = applicationRO.toEntity();
@@ -90,9 +114,6 @@ public class SellerApplicationService {
             throw new ServiceException("Error updating seller application", e);
         }
     }
-
-
-
 
     public String deleteApplication(Long id) {
         if (!sellerApplicationRepository.existsById(id)) {
