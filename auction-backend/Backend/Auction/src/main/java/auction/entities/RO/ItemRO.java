@@ -40,6 +40,9 @@ public class ItemRO {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime endTime;
 
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime createdAt;
+
     private AuctionStatus auctionStatus;
 
     public Item toEntity(User seller, Category category) {
@@ -53,6 +56,7 @@ public class ItemRO {
                 .category(category)
                 .startTime(this.startTime)
                 .endTime(this.endTime)
+                .createdAt(this.createdAt)
                 .status(this.status != null ? this.status : ItemStatus.PENDING)
                 .auctionStatus(this.auctionStatus != null ? this.auctionStatus : AuctionStatus.NOT_STARTED)
                 .build();

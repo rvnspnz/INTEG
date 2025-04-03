@@ -84,5 +84,6 @@ public class Item {
         this.endTime = itemRO.getEndTime();
         this.auctionStatus = itemRO.getAuctionStatus();
         this.imageBase64 = itemRO.getImageBase64();
+        this.createdAt = itemRO.getCreatedAt();
     }
 }

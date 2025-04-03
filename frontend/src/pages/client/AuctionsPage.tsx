@@ -9,6 +9,31 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import CreateAuctionDialog from "@/components/CreateAuctionDialog";
+<<<<<<< Updated upstream
+=======
+import ArtworkCard from "@/components/ArtworkCard";
+import axios from "axios";
+import { ArtworkType } from "@/data/artworks";
+
+
+
+interface Artwork {
+  id: string;
+  title: string;
+  description: string;
+  startingPrice: number;
+  currentBid: number;
+  image: string;
+  artist: string;
+  type: ArtworkType; // Updated to use ArtworkType
+  createdAt: Date;
+  auctionEnds: Date;
+  startingBid: number;
+  bids: Array<{ id: string; userId: string; userName: string; amount: number; timestamp: Date }>;
+  chat: Array<{ id: string; userId: string; userName: string; message: string; timestamp: Date }>;
+  featured: boolean;
+}
+>>>>>>> Stashed changes
 
 const AuctionsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -19,6 +44,50 @@ const AuctionsPage = () => {
   >("ending-soon");
   const { user } = useAuth();
 
+<<<<<<< Updated upstream
+=======
+  // Fetch artworks from backend
+  useEffect(() => {
+    const fetchArtworks = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get("http://localhost:8080/api/item");
+        const data = response.data.data;
+  
+        // Map backend data to Artwork interface and filter by status
+        const mappedArtworks = data
+          .filter(
+            (item: any) =>
+              item.status === "APPROVED" && item.auctionStatus === "ACTIVE" // Only include approved and active auctions
+          )
+          .map((item: any) => ({
+            artist: `${item.seller.firstName} ${item.seller.lastName}`,
+            title: item.name,
+            description: item.description,
+            startingPrice: item.startingPrice,
+            currentBid: item.currentBid || item.startingPrice, // Replace with actual current bid if available
+            image: item.imageBase64 || "/placeholder.svg",
+            type: item.category.name as ArtworkType, // Cast to ArtworkType
+            createdAt: new Date(item.createdAt),
+            auctionEnds: new Date(item.endTime),
+            startingBid: item.startingPrice,
+            bids: [], // Initialize with an empty array or map actual bids if available
+            chat: [], // Initialize with an empty array or map actual chat if available
+            featured: item.featured || false,
+          }));
+  
+        setArtworks(mappedArtworks);
+      } catch (error) {
+        console.error("Failed to fetch artworks:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    fetchArtworks();
+  }, []);
+
+>>>>>>> Stashed changes
   // Initialize search term from URL
   useEffect(() => {
     const urlSearchTerm = searchParams.get("search");
@@ -63,7 +132,7 @@ const AuctionsPage = () => {
       case "price-low":
         return a.currentBid - b.currentBid;
       case "newest":
-        return b.auctionEnds.getTime() - a.auctionEnds.getTime();
+        return b.createdAt.getTime() - a.createdAt.getTime();
       default:
         return 0;
     }
