@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/ui/custom-badge";
 import axios from "axios";
-import { useAuth } from "@/lib/auth-context"; // Update this import path
+import { useAuth } from "@/lib/auth-context";
 import { useNavigate } from "react-router-dom";
 
 const API_BASE_URL = "http://localhost:8080/seller-applications";
@@ -30,6 +30,7 @@ interface User {
   lastName: string;
   email: string;
   avatarUrl?: string;
+  role?: string;
 }
 
 interface SellerApplication {
@@ -41,12 +42,8 @@ interface SellerApplication {
   admin?: User;
 }
 
-interface ApplicationUpdateRequest {
-  status: "PENDING" | "APPROVED" | "REJECTED";
-}
-
 const SellerApplications = () => {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [selectedApplication, setSelectedApplication] =
     useState<SellerApplication | null>(null);
@@ -59,10 +56,10 @@ const SellerApplications = () => {
   });
 
   useEffect(() => {
-    if (!isAdmin()) {
+    if (!user || user.role !== "ADMIN") {
       navigate("/");
     }
-  }, [isAdmin, navigate]);
+  }, [user, navigate]);
 
   const fetchApplications = async () => {
     try {
@@ -109,14 +106,16 @@ const SellerApplications = () => {
 
   const handleApprove = async (application: SellerApplication) => {
     try {
-      const updateData: ApplicationUpdateRequest = {
-        status: "APPROVED",
-      };
-
       await axios.put(
-        `${API_BASE_URL}/${application.applicationId}?adminId=${user?.id}`,
-        updateData,
-        { withCredentials: true }
+        `${API_BASE_URL}/${application.applicationId}`,
+        {}, // Empty body
+        {
+          params: {
+            status: "APPROVED",
+            adminId: user.id,
+          },
+          withCredentials: true,
+        }
       );
 
       toast.success(
@@ -126,27 +125,30 @@ const SellerApplications = () => {
       fetchApplications();
     } catch (error) {
       console.error("Error approving application:", error);
-      toast.error(
-        "Failed to approve application. Please ensure you're logged in as admin."
-      );
+      toast.error("Failed to approve application");
     }
   };
 
   const handleReject = async (application: SellerApplication) => {
+    if (!user) {
+      toast.error("You must be logged in to perform this action");
+      return;
+    }
+
     try {
-      const updateData: ApplicationUpdateRequest = {
-        status: "REJECTED",
-      };
-
       await axios.put(
-        `${API_BASE_URL}/${application.applicationId}?adminId=${user?.id}`,
-        updateData,
-        { withCredentials: true }
+        `${API_BASE_URL}/${application.applicationId}`,
+        {}, // Empty body
+        {
+          params: {
+            status: "REJECTED",
+            adminId: user.id,
+          },
+          withCredentials: true,
+        }
       );
 
-      toast.success(
-        `${application.user.firstName} ${application.user.lastName}'s application has been rejected`
-      );
+      toast.success("Application rejected successfully");
       setIsViewDialogOpen(false);
       fetchApplications();
     } catch (error) {

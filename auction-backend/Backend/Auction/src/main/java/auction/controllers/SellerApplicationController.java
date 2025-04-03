@@ -7,6 +7,7 @@ import java.util.HashMap;
 
 import auction.entities.User;
 import auction.entities.enums.ApplicationStatus;
+import auction.entities.enums.Role;
 import auction.exceptions.ServiceException;
 import auction.repositories.UserRepository;
 import jakarta.servlet.http.HttpSession;
@@ -124,18 +125,35 @@ public class SellerApplicationController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<SellerApplication> updateApplication(
+    public ResponseEntity<SellerApplication> updateApplicationStatus(
             @PathVariable Long id,
-            @RequestBody SellerApplicationRO applicationRO,
+            @RequestParam String status,
             @RequestParam Long adminId,
             HttpSession session) {
 
         try {
-            // Pass adminId and session (to check if the user is an admin) to the service layer
-            SellerApplication updatedApplication = sellerApplicationService.updateApplication(id, applicationRO, adminId, session);
+            // Verify admin
+            User loggedInUser = (User) session.getAttribute("loggedInUser");
+            if (loggedInUser == null || !loggedInUser.getRole().equals(Role.ADMIN)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(null);
+            }
+
+            // Verify adminId matches logged in admin
+            if (!loggedInUser.getId().equals(adminId)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
+            }
+
+            SellerApplicationRO applicationRO = new SellerApplicationRO();
+            applicationRO.setStatus(ApplicationStatus.valueOf(status));
+            applicationRO.setApprovedAt(LocalDateTime.now());
+
+            SellerApplication updatedApplication = sellerApplicationService.updateApplicationStatus(
+                id, applicationRO, adminId);
             return ResponseEntity.ok(updatedApplication);
-        } catch (ServiceException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(null);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(null);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(null);
         }
     }
 
