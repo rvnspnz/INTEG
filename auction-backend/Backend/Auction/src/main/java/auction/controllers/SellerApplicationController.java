@@ -3,6 +3,7 @@ package auction.controllers;
 import java.util.List;
 import java.util.Map;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 
 import auction.entities.User;
 import auction.entities.enums.ApplicationStatus;
@@ -52,6 +53,21 @@ public class SellerApplicationController {
         return sellerApplicationService.getApplicationById(id)
                 .orElseThrow(() -> new RuntimeException("Application not found"));
     }
+    
+    // New endpoint to check if a user already has an application
+    @GetMapping("/check/{userId}")
+    public ResponseEntity<Map<String, Boolean>> checkApplicationExists(@PathVariable Long userId) {
+        try {
+            boolean hasApplication = sellerApplicationService.hasApplicationByUserId(userId);
+            Map<String, Boolean> response = new HashMap<>();
+            response.put("exists", hasApplication);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Boolean> response = new HashMap<>();
+            response.put("exists", false);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
 
     @PostMapping
     public ResponseEntity<SellerApplication> createApplication(
@@ -74,6 +90,12 @@ public class SellerApplicationController {
         try {
             Long userId = Long.valueOf(payload.get("user_id").toString());
             String description = (String) payload.get("description");
+            
+            // Check if user already has an application
+            if (sellerApplicationService.hasApplicationByUserId(userId)) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body("User already has a pending or approved application");
+            }
             
             // Find the user
             User user = userRepository.findById(userId)
@@ -117,11 +139,9 @@ public class SellerApplicationController {
         }
     }
 
-
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteApplication(@PathVariable Long id) {
         String message = sellerApplicationService.deleteApplication(id);
         return ResponseEntity.ok(message);
     }
-
 }
