@@ -1,14 +1,5 @@
-import { useState, useMemo } from "react";
-import {
-  BadgeCheck,
-  Clock,
-  X,
-  User,
-  Mail,
-  Tag,
-  FileText,
-  Briefcase,
-} from "lucide-react";
+import { useState, useEffect } from "react";
+import { BadgeCheck, Clock, X, User, FileText, Briefcase } from "lucide-react";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,44 +12,90 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { SellerApplication } from "@/lib/types";
-import { sellerApplications, users } from "@/lib/data";
 import MainLayout from "@/components/Layout/MainLayout";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/ui/custom-badge";
+import axios from "axios";
+import { useAuth } from "@/lib/auth-context"; // Update this import path
+import { useNavigate } from "react-router-dom";
+
+const API_BASE_URL = "http://localhost:8080/seller-applications";
+
+axios.defaults.withCredentials = true;
+
+interface User {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  avatarUrl?: string;
+}
+
+interface SellerApplication {
+  applicationId: number;
+  user: User;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  appliedAt: string;
+  approvedAt?: string;
+  admin?: User;
+}
+
+interface ApplicationUpdateRequest {
+  status: "PENDING" | "APPROVED" | "REJECTED";
+}
 
 const SellerApplications = () => {
-  const [applicationsData, setApplicationsData] =
-    useState<SellerApplication[]>(sellerApplications);
+  const { user, isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [selectedApplication, setSelectedApplication] =
     useState<SellerApplication | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [statusCounts, setStatusCounts] = useState({
+    PENDING: 0,
+    APPROVED: 0,
+    REJECTED: 0,
+    total: 0,
+  });
 
-  // Calculate application status counts
-  const statusCounts = useMemo(() => {
-    const counts = {
-      pending: 0,
-      approved: 0,
-      rejected: 0,
-      total: applicationsData.length,
-    };
+  useEffect(() => {
+    if (!isAdmin()) {
+      navigate("/");
+    }
+  }, [isAdmin, navigate]);
 
-    applicationsData.forEach((app) => {
-      counts[app.status as keyof typeof counts] += 1;
-    });
+  const fetchApplications = async () => {
+    try {
+      const response = await axios.get(API_BASE_URL, { withCredentials: true });
+      const applications = response.data || [];
 
-    return counts;
-  }, [applicationsData]);
+      const counts = {
+        PENDING: 0,
+        APPROVED: 0,
+        REJECTED: 0,
+        total: applications.length,
+      };
 
-  // Helper function to map application status to StatusBadge variant
+      applications.forEach((app: SellerApplication) => {
+        counts[app.status] += 1;
+      });
+
+      setStatusCounts(counts);
+      return applications;
+    } catch (error) {
+      console.error("Error fetching applications:", error);
+      toast.error("Failed to fetch applications");
+      return [];
+    }
+  };
+
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case "approved":
+      case "APPROVED":
         return "success";
-      case "rejected":
+      case "REJECTED":
         return "rejected";
-      case "pending":
+      case "PENDING":
         return "pending";
       default:
         return "default";
@@ -70,42 +107,60 @@ const SellerApplications = () => {
     setIsViewDialogOpen(true);
   };
 
-  const handleApprove = (application: SellerApplication) => {
-    // Update application status
-    setApplicationsData(
-      applicationsData.map((app) =>
-        app.id === application.id ? { ...app, status: "approved" } : app
-      )
-    );
+  const handleApprove = async (application: SellerApplication) => {
+    try {
+      const updateData: ApplicationUpdateRequest = {
+        status: "APPROVED",
+      };
 
-    // Also update the user's role to seller if they're in pending status
-    const user = users.find((u) => u.id === application.userId);
-    if (user && user.status === "pending") {
-      user.status = "active";
-      user.role = "seller";
+      await axios.put(
+        `${API_BASE_URL}/${application.applicationId}?adminId=${user?.id}`,
+        updateData,
+        { withCredentials: true }
+      );
+
+      toast.success(
+        `${application.user.firstName} ${application.user.lastName}'s application has been approved`
+      );
+      setIsViewDialogOpen(false);
+      fetchApplications();
+    } catch (error) {
+      console.error("Error approving application:", error);
+      toast.error(
+        "Failed to approve application. Please ensure you're logged in as admin."
+      );
     }
-
-    toast.success(`${application.firstName} ${application.lastName}'s application has been approved`);
-    setIsViewDialogOpen(false);
   };
 
-  const handleReject = (application: SellerApplication) => {
-    setApplicationsData(
-      applicationsData.map((app) =>
-        app.id === application.id ? { ...app, status: "rejected" } : app
-      )
-    );
+  const handleReject = async (application: SellerApplication) => {
+    try {
+      const updateData: ApplicationUpdateRequest = {
+        status: "REJECTED",
+      };
 
-    toast.success(`${application.firstName} ${application.lastName}'s application has been rejected`);
-    setIsViewDialogOpen(false);
+      await axios.put(
+        `${API_BASE_URL}/${application.applicationId}?adminId=${user?.id}`,
+        updateData,
+        { withCredentials: true }
+      );
+
+      toast.success(
+        `${application.user.firstName} ${application.user.lastName}'s application has been rejected`
+      );
+      setIsViewDialogOpen(false);
+      fetchApplications();
+    } catch (error) {
+      console.error("Error rejecting application:", error);
+      toast.error("Failed to reject application");
+    }
   };
 
-  // Format date to show in a nicer format
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -115,41 +170,27 @@ const SellerApplications = () => {
       header: "Applicant",
       cell: (row: SellerApplication) => (
         <div className="flex items-center">
-          {row.avatarUrl ? (
+          {row.user.avatarUrl ? (
             <img
-              src={row.avatarUrl}
-              alt={`${row.firstName} ${row.lastName}`}
+              src={row.user.avatarUrl}
+              alt={`${row.user.firstName} ${row.user.lastName}`}
               className="h-8 w-8 rounded-full mr-3"
             />
           ) : (
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
               <span className="text-primary font-medium">
-                {row.firstName.charAt(0)}
+                {row.user.firstName?.charAt(0) || "A"}
               </span>
             </div>
           )}
           <div>
-            <div className="font-medium">{row.firstName} {row.lastName}</div>
-            <div className="text-sm text-muted-foreground">@{row.username}</div>
+            <div className="font-medium">
+              {row.user.firstName} {row.user.lastName}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {row.user.email}
+            </div>
           </div>
-        </div>
-      ),
-      sortable: true,
-    },
-    {
-      id: "email",
-      header: "Email",
-      cell: (row: SellerApplication) => (
-        <div className="text-sm">{row.email}</div>
-      ),
-      sortable: true,
-    },
-    {
-      id: "category",
-      header: "Category",
-      cell: (row: SellerApplication) => (
-        <div className="text-sm font-medium py-1 px-2 bg-secondary/50 rounded-md inline-block">
-          {row.category}
         </div>
       ),
       sortable: true,
@@ -158,9 +199,7 @@ const SellerApplications = () => {
       id: "submittedAt",
       header: "Submitted",
       cell: (row: SellerApplication) => (
-        <div className="text-sm">
-          {formatDate(row.submittedAt)}
-        </div>
+        <div className="text-sm">{formatDate(row.appliedAt)}</div>
       ),
       sortable: true,
     },
@@ -171,13 +210,13 @@ const SellerApplications = () => {
         let icon;
 
         switch (row.status) {
-          case "approved":
+          case "APPROVED":
             icon = <BadgeCheck className="h-4 w-4 mr-1 text-success" />;
             break;
-          case "rejected":
+          case "REJECTED":
             icon = <X className="h-4 w-4 mr-1" />;
             break;
-          case "pending":
+          case "PENDING":
             icon = <Clock className="h-4 w-4 mr-1 text-muted-foreground" />;
             break;
         }
@@ -189,11 +228,21 @@ const SellerApplications = () => {
               className="gap-1"
             >
               {icon}
-              {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
+              {row.status.charAt(0) + row.status.slice(1).toLowerCase()}
             </StatusBadge>
           </div>
         );
       },
+      sortable: true,
+    },
+    {
+      id: "approvedAt",
+      header: "Processed Date",
+      cell: (row: SellerApplication) => (
+        <div className="text-sm">
+          {row.approvedAt ? formatDate(row.approvedAt) : "Not processed"}
+        </div>
+      ),
       sortable: true,
     },
   ];
@@ -209,7 +258,6 @@ const SellerApplications = () => {
         </p>
       </div>
 
-      {/* Status overview cards */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <Card className="p-4 bg-white shadow-sm">
           <div className="flex items-center justify-between">
@@ -222,36 +270,42 @@ const SellerApplications = () => {
             </div>
           </div>
         </Card>
-        
+
         <Card className="p-4 bg-amber-50 shadow-sm border-amber-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-amber-700">Pending</p>
-              <h3 className="text-2xl font-bold text-amber-600">{statusCounts.pending}</h3>
+              <h3 className="text-2xl font-bold text-amber-600">
+                {statusCounts.PENDING}
+              </h3>
             </div>
             <div className="p-2 bg-amber-100 rounded-full">
               <Clock className="h-5 w-5 text-amber-600" />
             </div>
           </div>
         </Card>
-        
+
         <Card className="p-4 bg-green-50 shadow-sm border-green-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-green-700">Approved</p>
-              <h3 className="text-2xl font-bold text-green-600">{statusCounts.approved}</h3>
+              <h3 className="text-2xl font-bold text-green-600">
+                {statusCounts.APPROVED}
+              </h3>
             </div>
             <div className="p-2 bg-green-100 rounded-full">
               <BadgeCheck className="h-5 w-5 text-green-600" />
             </div>
           </div>
         </Card>
-        
+
         <Card className="p-4 bg-red-50 shadow-sm border-red-200">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-red-700">Rejected</p>
-              <h3 className="text-2xl font-bold text-red-600">{statusCounts.rejected}</h3>
+              <h3 className="text-2xl font-bold text-red-600">
+                {statusCounts.REJECTED}
+              </h3>
             </div>
             <div className="p-2 bg-red-100 rounded-full">
               <X className="h-5 w-5 text-red-600" />
@@ -263,13 +317,12 @@ const SellerApplications = () => {
       <Card className="shadow-soft overflow-hidden">
         <DataTable
           columns={columns}
-          data={applicationsData}
+          fetchData={fetchApplications}
           onView={handleViewDetails}
           searchPlaceholder="Search applications..."
         />
       </Card>
 
-      {/* View Application Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -282,26 +335,26 @@ const SellerApplications = () => {
           {selectedApplication && (
             <div className="space-y-4">
               <div className="flex items-center">
-                {selectedApplication.avatarUrl && (
-                  <img
-                    src={selectedApplication.avatarUrl}
-                    alt={`${selectedApplication.firstName} ${selectedApplication.lastName}`}
-                    className="h-12 w-12 rounded-full mr-3"
-                  />
-                )}
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                  <span className="text-primary font-medium">
+                    {selectedApplication.user.firstName?.charAt(0) || "A"}
+                  </span>
+                </div>
                 <div>
                   <h3 className="text-base font-semibold">
-                    {selectedApplication.firstName} {selectedApplication.lastName}
+                    {selectedApplication.user.firstName}{" "}
+                    {selectedApplication.user.lastName}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Applied on {formatDate(selectedApplication.submittedAt)}
+                    Applied on {formatDate(selectedApplication.appliedAt)}
                   </p>
                 </div>
                 <StatusBadge
                   variant={getStatusVariant(selectedApplication.status)}
                   className="ml-auto capitalize"
                 >
-                  {selectedApplication.status}
+                  {selectedApplication.status.charAt(0) +
+                    selectedApplication.status.slice(1).toLowerCase()}
                 </StatusBadge>
               </div>
 
@@ -317,77 +370,72 @@ const SellerApplications = () => {
                       </Label>
                       <div className="grid grid-cols-2 gap-2 mt-1">
                         <div>
-                          <p className="text-xs text-muted-foreground">First Name</p>
-                          <p className="font-medium">{selectedApplication.firstName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            First Name
+                          </p>
+                          <p className="font-medium">
+                            {selectedApplication.user.firstName}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">Last Name</p>
-                          <p className="font-medium">{selectedApplication.lastName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Last Name
+                          </p>
+                          <p className="font-medium">
+                            {selectedApplication.user.lastName}
+                          </p>
                         </div>
                       </div>
                       <div className="mt-2">
-                        <p className="text-xs text-muted-foreground">Username</p>
-                        <p className="font-medium">@{selectedApplication.username}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-[#f5f0ea] p-4 rounded-lg">
-                  <div className="flex items-start">
-                    <Mail className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <div>
-                      <Label className="text-sm text-muted-foreground font-medium">
-                        Contact Information
-                      </Label>
-                      <div className="mt-1">
-                        <p className="text-xs text-muted-foreground">Email Address</p>
-                        <p className="font-medium">{selectedApplication.email}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-[#f5f0ea] p-4 rounded-lg">
-                  <div className="flex items-start">
-                    <Tag className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <div>
-                      <Label className="text-sm text-muted-foreground font-medium">
-                        Product Specialization
-                      </Label>
-                      <div className="mt-1">
-                        <p className="text-xs text-muted-foreground">Main Category</p>
-                        <div className="font-medium mt-1">
-                          <span className="py-1 px-3 bg-[#8c6142] text-white rounded-full text-sm">
-                            {selectedApplication.category}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-[#f5f0ea] p-4 rounded-lg">
-                  <div className="flex items-start">
-                    <FileText className="h-5 w-5 mr-2 text-muted-foreground" />
-                    <div>
-                      <Label className="text-sm text-muted-foreground font-medium">
-                        Background & Experience
-                      </Label>
-                      <div className="mt-1">
-                        <p className="text-sm">
-                          {selectedApplication.background}
+                        <p className="text-xs text-muted-foreground">Email</p>
+                        <p className="font-medium">
+                          {selectedApplication.user.email}
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
+
+                {selectedApplication.status !== "PENDING" && (
+                  <div className="bg-[#f5f0ea] p-4 rounded-lg">
+                    <div className="flex items-start">
+                      <FileText className="h-5 w-5 mr-2 text-muted-foreground" />
+                      <div>
+                        <Label className="text-sm text-muted-foreground font-medium">
+                          Processing Information
+                        </Label>
+                        <div className="mt-1">
+                          <p className="text-xs text-muted-foreground">
+                            {selectedApplication.status === "APPROVED"
+                              ? "Approved On"
+                              : "Rejected On"}
+                          </p>
+                          <p className="font-medium">
+                            {selectedApplication.approvedAt
+                              ? formatDate(selectedApplication.approvedAt)
+                              : "Not recorded"}
+                          </p>
+                        </div>
+                        {selectedApplication.admin && (
+                          <div className="mt-2">
+                            <p className="text-xs text-muted-foreground">
+                              Processed By Admin ID
+                            </p>
+                            <p className="font-medium">
+                              {selectedApplication.admin.id}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           <DialogFooter className="mt-4 flex space-x-2">
-            {selectedApplication?.status === "pending" && (
+            {selectedApplication?.status === "PENDING" && (
               <>
                 <Button
                   variant="outline"
@@ -406,7 +454,7 @@ const SellerApplications = () => {
                 </Button>
               </>
             )}
-            {selectedApplication?.status !== "pending" && (
+            {selectedApplication?.status !== "PENDING" && (
               <Button onClick={() => setIsViewDialogOpen(false)}>Close</Button>
             )}
           </DialogFooter>

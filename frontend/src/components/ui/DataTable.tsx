@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -34,40 +34,18 @@ interface Column {
 
 interface DataTableProps {
   columns: Column[];
-  data: any[];
-  onEdit?: (row: any) => void;
-  onDelete?: (row: any) => void;
-  onView?: (row: any) => void;
+  fetchData: () => Promise<any[]>;
+  onView?: (row: any) => void; // Only view action remains
   searchPlaceholder?: string;
 }
 
-// Find and modify any text styling in the DataTable component
-// Add these styles to text elements:
-
-// For header text
-const headerClasses = "font-semibold text-foreground";
-
-// For muted text
-const mutedClasses = "text-muted-admin";
-
-// For cell text
-const cellClasses = "text-foreground";
-
-// Update the SearchBar component to use higher contrast text
-// Change any text-muted-foreground to text-muted-admin where appropriate
-// Add darker text for placeholders with placeholder:text-muted-admin
-
-// Make sure table headers have strong contrast
-// Add font-medium or font-semibold to table headers
-
 export const DataTable = ({
   columns,
-  data,
-  onEdit,
-  onDelete,
+  fetchData,
   onView,
   searchPlaceholder = "Search...",
 }: DataTableProps) => {
+  const [data, setData] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState<{
@@ -77,7 +55,19 @@ export const DataTable = ({
 
   const itemsPerPage = 10;
 
-  // Filter data based on search query
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const result = await fetchData();
+        setData(result);
+      } catch (error) {
+        console.error("Failed to fetch data:", error);
+      }
+    };
+
+    loadData();
+  }, [fetchData]);
+
   const filteredData = data.filter((row) => {
     return Object.values(row).some((value) => {
       if (value === null || value === undefined) return false;
@@ -85,12 +75,10 @@ export const DataTable = ({
     });
   });
 
-  // Sort data
   const sortedData = [...filteredData].sort((a, b) => {
     if (!sortConfig) return 0;
-
     const { key, direction } = sortConfig;
-    
+
     if (a[key] < b[key]) {
       return direction === "asc" ? -1 : 1;
     }
@@ -100,7 +88,6 @@ export const DataTable = ({
     return 0;
   });
 
-  // Paginate data
   const paginatedData = sortedData.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -108,14 +95,15 @@ export const DataTable = ({
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
-  // Handle sorting
   const handleSort = (key: string) => {
     let direction: "asc" | "desc" = "asc";
-    
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
+    if (
+      sortConfig &&
+      sortConfig.key === key &&
+      sortConfig.direction === "asc"
+    ) {
       direction = "desc";
     }
-    
     setSortConfig({ key, direction });
   };
 
@@ -195,24 +183,9 @@ export const DataTable = ({
                         <DropdownMenuContent align="end" className="w-[160px]">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          {onView && (
-                            <DropdownMenuItem onClick={() => onView(row)}>
-                              View details
-                            </DropdownMenuItem>
-                          )}
-                          {onEdit && (
-                            <DropdownMenuItem onClick={() => onEdit(row)}>
-                              Edit
-                            </DropdownMenuItem>
-                          )}
-                          {onDelete && (
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => onDelete(row)}
-                            >
-                              Delete
-                            </DropdownMenuItem>
-                          )}
+                          <DropdownMenuItem onClick={() => onView?.(row)}>
+                            View details
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -265,7 +238,11 @@ export const DataTable = ({
                 variant={pageNumber === currentPage ? "outline" : "outline"}
                 size="icon"
                 onClick={() => setCurrentPage(pageNumber)}
-                className={pageNumber === currentPage ? "bg-[#AA8F66] text-white hover:bg-[#AA8F66]/90" : ""}
+                className={
+                  pageNumber === currentPage
+                    ? "bg-[#AA8F66] text-white hover:bg-[#AA8F66]/90"
+                    : ""
+                }
               >
                 {pageNumber}
               </Button>
