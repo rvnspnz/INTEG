@@ -65,6 +65,7 @@ const Items = () => {
     setIsViewDialogOpen(true);
   };
 
+<<<<<<< Updated upstream
   const handleEdit = (item: Item) => {
     setSelectedItem(item);
     form.reset({
@@ -92,6 +93,31 @@ const Items = () => {
       setItemsData(itemsData.filter((item) => item.id !== selectedItem.id));
       setIsDeleteDialogOpen(false);
       toast.success(`Item deleted successfully`);
+=======
+  const handleStatusUpdate = async (newStatus) => {
+    if (!selectedItem) {
+      toast.error("No item selected");
+      return;
+    }
+  
+    try {
+      // Change this API call to match the backend endpoint
+      await axios.put(`${API_BASE_URL}/${selectedItem.id}/status`, {
+        adminid: 1, // Replace with the actual admin ID
+        status: newStatus,
+      }, {
+        params: {  // Send as query parameters instead of request body
+          adminId: 1,
+          status: newStatus
+        }
+      });
+      toast.success("Item status updated successfully");
+      fetchItems(); // Refresh the items list
+      setIsViewDialogOpen(false); // Close the dialog
+    } catch (error) {
+      console.error("Error updating item status:", error);
+      toast.error("Failed to update item status");
+>>>>>>> Stashed changes
     }
   };
 
