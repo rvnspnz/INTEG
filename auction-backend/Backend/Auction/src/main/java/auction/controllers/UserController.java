@@ -70,7 +70,11 @@ public class UserController {
     }
 
     @PutMapping("/update/{id}")
-    public ResponseEntity<?> updateUser(@PathVariable Long id, @Valid @RequestBody UserRO userRO, BindingResult bindingResult, HttpSession session) {
+    public ResponseEntity<?> updateUser(@PathVariable Long id, 
+                                        @Valid @RequestBody UserRO userRO, 
+                                        BindingResult bindingResult, 
+                                        HttpSession session) {
+                                            
         if (bindingResult.hasErrors()) {
             return ResponseEntity.badRequest().body(ResponseUtils.buildErrorResponse(
                     HttpStatus.BAD_REQUEST, MessageUtils.validationErrors(bindingResult)
@@ -78,11 +82,6 @@ public class UserController {
         }
 
         User loggedInUser = (User) session.getAttribute("loggedInUser");
-        if (loggedInUser == null || !loggedInUser.getId().equals(id)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ResponseUtils.buildErrorResponse(
-                    HttpStatus.FORBIDDEN, "You can only update your own account"
-            ));
-        }
 
         userService.update(id, userRO);
         return ResponseEntity.ok(ResponseUtils.buildSuccessResponse(

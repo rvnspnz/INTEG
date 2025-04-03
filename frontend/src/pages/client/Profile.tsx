@@ -96,16 +96,27 @@ export default function Profile() {
     }));
   };
 
-  const handleUpdateProfile = (e: React.FormEvent) => {
+  const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // In a real application, you would call an API here
-    setTimeout(() => {
+  
+    try {
+      const response = await axios.put(
+        `http://localhost:8080/api/user/update/${user.id}`,
+        profileData,
+        { withCredentials: true }
+      );
+      
+      
       toast.success("Profile updated successfully");
+    } catch (err) {
+      toast.error("Failed to update profile. Please try again.");
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
+  
+  
 
   const handleLogout = () => {
     logout();
