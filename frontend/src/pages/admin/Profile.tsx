@@ -1,92 +1,149 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import MainLayout from "@/components/Layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { LogOut, Lock, Shield, AlertTriangle, User, Calendar, Mail, Edit, Star } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  LogOut,
+  Lock,
+  Shield,
+  AlertTriangle,
+  User,
+  Calendar,
+  Mail,
+  Edit,
+  Star,
+} from "lucide-react";
+import axios from "axios";
+
+const API_BASE_URL = "http://localhost:8080/api/user";
 
 export default function AdminProfile() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("account");
   const [isLoading, setIsLoading] = useState(false);
-  const [expandedPermission, setExpandedPermission] = useState<string | null>(null);
-  
-  // Fixed admin data
-  const adminData = {
-    id: "ADM001",
-    username: user?.username || "admin",
-    name: user?.name || "Admin User",
-    email: user?.email || "admin@artauction.com",
+  const [expandedPermission, setExpandedPermission] = useState<string | null>(
+    null
+  );
+  const [adminData, setAdminData] = useState({
+    id: "",
+    username: "",
+    firstName: "",
+    lastName: "",
+    email: "",
     role: "ADMIN",
-    joinDate: "January 15, 2023",
-    lastLogin: "Today at 9:30 AM",
+    createdAt: "",
+    lastLogin: "",
     permissions: [
       {
         name: "User Management",
-        description: "Create, edit, and delete user accounts. Modify user roles and permissions."
+        description:
+          "Create, edit, and delete user accounts. Modify user roles and permissions.",
       },
       {
         name: "Content Management",
-        description: "Manage all content including auctions, items, and categories."
+        description:
+          "Manage all content including auctions, items, and categories.",
       },
       {
         name: "Auction Approvals",
-        description: "Review and approve auction submissions from sellers."
+        description: "Review and approve auction submissions from sellers.",
       },
       {
         name: "Seller Verifications",
-        description: "Verify seller identities and approve seller applications."
+        description:
+          "Verify seller identities and approve seller applications.",
       },
       {
         name: "System Settings",
-        description: "Configure system-wide settings and preferences."
-      }
-    ] as const
+        description: "Configure system-wide settings and preferences.",
+      },
+    ] as const,
+  });
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchAdminData();
+    }
+  }, [user]);
+
+  const fetchAdminData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await axios.get(`${API_BASE_URL}/${user.id}`);
+      const userData = response.data?.data || {};
+
+      setAdminData((prev) => ({
+        ...prev,
+        id: userData.id || "",
+        username: userData.username || "",
+        firstName: userData.firstName || "",
+        lastName: userData.lastName || "",
+        email: userData.email || "",
+        role: userData.role || "ADMIN",
+        createdAt: userData.createdAt || "",
+        lastLogin: userData.lastLogin || "Today at 9:30 AM", // Default if not available
+      }));
+    } catch (error) {
+      console.error("Error fetching admin data:", error);
+      toast.error("Failed to load admin profile");
+    } finally {
+      setIsLoading(false);
+    }
   };
-  
-  const getInitials = (name: string = "") => {
-    if (!name) return "AD";
-    
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
+
+  const getInitials = (firstName = "", lastName = "") => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
-  
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "Unknown date";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
   const handleLogout = () => {
     logout();
   };
-  
-  const handleDeleteAccount = () => {
+
+  const handleDeleteAccount = async () => {
     setIsLoading(true);
-    
-    setTimeout(() => {
+
+    try {
+      await axios.delete(`${API_BASE_URL}/${user.id}`);
       toast.success("Account deleted successfully");
-      setIsLoading(false);
       logout();
-    }, 1000);
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      toast.error("Failed to delete account");
+    } finally {
+      setIsLoading(false);
+    }
   };
-  
-  if (!user) {
-    return (
-      <MainLayout>
-        <div className="container py-8">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Not Logged In</h1>
-            <p className="mb-4">Please log in to view your profile</p>
-            <Button className="bg-[#AA8F66] hover:bg-[#AA8F66]/90 text-white" asChild>
-              <a href="/login">Log In</a>
-            </Button>
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
-  
+
   const togglePermissionDetails = (permissionName: string) => {
     if (expandedPermission === permissionName) {
       setExpandedPermission(null);
@@ -94,7 +151,26 @@ export default function AdminProfile() {
       setExpandedPermission(permissionName);
     }
   };
-  
+
+  if (!user) {
+    return (
+      <MainLayout>
+        <div className="container py-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold mb-4">Not Logged In</h1>
+            <p className="mb-4">Please log in to view your profile</p>
+            <Button
+              className="bg-[#AA8F66] hover:bg-[#AA8F66]/90 text-white"
+              asChild
+            >
+              <a href="/login">Log In</a>
+            </Button>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout>
       <div className="grid gap-6 md:grid-cols-3">
@@ -105,8 +181,16 @@ export default function AdminProfile() {
               <div className="absolute inset-0 opacity-20">
                 <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20"></div>
                 <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/10 rounded-full -ml-10 -mb-10"></div>
-                <svg className="absolute right-0 bottom-0 h-full w-64 text-white/10" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <path d="M0,100 C30,90 70,50 100,100" fill="white" fillOpacity="0.1" />
+                <svg
+                  className="absolute right-0 bottom-0 h-full w-64 text-white/10"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M0,100 C30,90 70,50 100,100"
+                    fill="white"
+                    fillOpacity="0.1"
+                  />
                 </svg>
               </div>
             </div>
@@ -115,7 +199,7 @@ export default function AdminProfile() {
                 <div className="relative group">
                   <Avatar className="w-32 h-32 border-4 border-white shadow-lg bg-[#5A3A31] ring-4 ring-[#AA8F66]/20 group-hover:ring-[#AA8F66]/40 transition-all duration-300">
                     <AvatarFallback className="text-3xl text-white font-semibold">
-                      {getInitials(adminData.name)}
+                      {getInitials(adminData.firstName, adminData.lastName)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="absolute bottom-1 right-1 h-8 w-8 bg-[#AA8F66] rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-md cursor-pointer">
@@ -123,17 +207,18 @@ export default function AdminProfile() {
                   </div>
                 </div>
                 <h2 className="text-xl font-semibold mt-4 text-[#5A3A31]">
-                  {adminData.name}
+                  {adminData.firstName} {adminData.lastName}
                 </h2>
                 <div className="mt-1 px-4 py-1 bg-gradient-to-r from-[#5A3A31] to-[#AA8F66] text-white rounded-full text-xs font-medium shadow-sm flex items-center">
                   <Star size={12} className="mr-1" /> {adminData.role}
                 </div>
                 <p className="text-sm text-[#5A3A31]/70 mt-2 flex items-center">
-                  <Mail size={14} className="mr-1.5 text-[#AA8F66]" /> {adminData.email}
+                  <Mail size={14} className="mr-1.5 text-[#AA8F66]" />{" "}
+                  {adminData.email}
                 </p>
-                
-                <Button 
-                  variant="outline" 
+
+                <Button
+                  variant="outline"
                   className="mt-4 w-full border-[#AA8F66]/30 text-[#5A3A31] hover:bg-[#AA8F66]/10 hover:text-[#5A3A31] shadow-sm transition-all duration-200"
                   onClick={handleLogout}
                 >
@@ -141,33 +226,42 @@ export default function AdminProfile() {
                   Logout
                 </Button>
               </div>
-              
+
               <div className="mt-6 pt-4 border-t border-[#AA8F66]/10">
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-[#5A3A31]/70 flex items-center">
-                      <User size={14} className="mr-1.5 text-[#AA8F66]" /> User ID
+                      <User size={14} className="mr-1.5 text-[#AA8F66]" /> User
+                      ID
                     </span>
-                    <span className="text-sm font-medium text-[#5A3A31] bg-[#AA8F66]/10 px-2 py-0.5 rounded shadow-sm">{adminData.id}</span>
+                    <span className="text-sm font-medium text-[#5A3A31] bg-[#AA8F66]/10 px-2 py-0.5 rounded shadow-sm">
+                      {adminData.id}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-[#5A3A31]/70 flex items-center">
-                      <Calendar size={14} className="mr-1.5 text-[#AA8F66]" /> Joined
+                      <Calendar size={14} className="mr-1.5 text-[#AA8F66]" />{" "}
+                      Joined
                     </span>
-                    <span className="text-sm font-medium text-[#5A3A31]">{adminData.joinDate}</span>
+                    <span className="text-sm font-medium text-[#5A3A31]">
+                      {formatDate(adminData.createdAt)}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-[#5A3A31]/70 flex items-center">
-                      <Calendar size={14} className="mr-1.5 text-[#AA8F66]" /> Last Login
+                      <Calendar size={14} className="mr-1.5 text-[#AA8F66]" />{" "}
+                      Last Login
                     </span>
-                    <span className="text-sm font-medium text-[#5A3A31]">{adminData.lastLogin}</span>
+                    <span className="text-sm font-medium text-[#5A3A31]">
+                      {adminData.lastLogin}
+                    </span>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
-        
+
         {/* Main Content */}
         <div className="md:col-span-2 space-y-6">
           {/* Admin Permissions */}
@@ -177,7 +271,9 @@ export default function AdminProfile() {
             <CardHeader className="pb-3 relative z-10">
               <div className="flex items-center">
                 <Shield size={20} className="text-[#AA8F66] mr-2" />
-                <CardTitle className="text-[#5A3A31]">Admin Permissions</CardTitle>
+                <CardTitle className="text-[#5A3A31]">
+                  Admin Permissions
+                </CardTitle>
               </div>
               <CardDescription className="text-[#5A3A31]/70">
                 Access rights granted to your admin account
@@ -186,24 +282,54 @@ export default function AdminProfile() {
             <CardContent className="relative z-10">
               <div className="grid grid-cols-1 gap-3">
                 {adminData.permissions.map((permission, index) => (
-                  <div 
-                    key={index} 
-                    className={`flex flex-col p-3 bg-[#AA8F66]/5 hover:bg-[#AA8F66]/10 transition-colors border border-[#AA8F66]/10 shadow-sm rounded-lg cursor-pointer ${expandedPermission === permission.name ? 'bg-[#AA8F66]/10' : ''}`}
+                  <div
+                    key={index}
+                    className={`flex flex-col p-3 bg-[#AA8F66]/5 hover:bg-[#AA8F66]/10 transition-colors border border-[#AA8F66]/10 shadow-sm rounded-lg cursor-pointer ${
+                      expandedPermission === permission.name
+                        ? "bg-[#AA8F66]/10"
+                        : ""
+                    }`}
                     onClick={() => togglePermissionDetails(permission.name)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <div className="w-2 h-2 bg-[#AA8F66] rounded-full mr-2"></div>
-                        <span className="text-sm font-medium text-[#5A3A31]">{permission.name}</span>
+                        <span className="text-sm font-medium text-[#5A3A31]">
+                          {permission.name}
+                        </span>
                       </div>
-                      <div className={`transform transition-transform duration-200 ${expandedPermission === permission.name ? 'rotate-180' : ''}`}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M6 9L12 15L18 9" stroke="#5A3A31" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <div
+                        className={`transform transition-transform duration-200 ${
+                          expandedPermission === permission.name
+                            ? "rotate-180"
+                            : ""
+                        }`}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M6 9L12 15L18 9"
+                            stroke="#5A3A31"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
                         </svg>
                       </div>
                     </div>
-                    
-                    <div className={`mt-2 text-xs text-[#5A3A31]/70 overflow-hidden transition-all duration-300 ${expandedPermission === permission.name ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'}`}>
+
+                    <div
+                      className={`mt-2 text-xs text-[#5A3A31]/70 overflow-hidden transition-all duration-300 ${
+                        expandedPermission === permission.name
+                          ? "max-h-20 opacity-100"
+                          : "max-h-0 opacity-0"
+                      }`}
+                    >
                       {permission.description}
                     </div>
                   </div>
@@ -211,7 +337,7 @@ export default function AdminProfile() {
               </div>
             </CardContent>
           </Card>
-          
+
           {/* Security Settings */}
           <Card className="border-none shadow-md overflow-hidden relative group hover:shadow-lg transition-shadow duration-300">
             <div className="absolute top-0 left-0 w-1 h-full bg-[#5A3A31]"></div>
@@ -219,7 +345,9 @@ export default function AdminProfile() {
             <CardHeader className="pb-3 relative z-10">
               <div className="flex items-center">
                 <Lock size={20} className="text-[#5A3A31] mr-2" />
-                <CardTitle className="text-[#5A3A31]">Security Settings</CardTitle>
+                <CardTitle className="text-[#5A3A31]">
+                  Security Settings
+                </CardTitle>
               </div>
               <CardDescription className="text-[#5A3A31]/70">
                 Manage your account security
@@ -232,21 +360,39 @@ export default function AdminProfile() {
                     <Lock size={16} className="text-[#5A3A31]/70 mr-2" />
                     Change Password
                   </h3>
-                  <p className="text-sm text-[#5A3A31]/70 mt-1">Update your password regularly for security</p>
+                  <p className="text-sm text-[#5A3A31]/70 mt-1">
+                    Update your password regularly for security
+                  </p>
                 </div>
-                <Button size="sm" className="bg-[#AA8F66] hover:bg-[#AA8F66]/90 text-white shadow-sm transition-all duration-200 group-hover:scale-105">
+                <Button
+                  size="sm"
+                  className="bg-[#AA8F66] hover:bg-[#AA8F66]/90 text-white shadow-sm transition-all duration-200 group-hover:scale-105"
+                >
                   Update
                 </Button>
               </div>
             </CardContent>
           </Card>
-          
+
           {/* Danger Zone */}
           <Card className="border-none shadow-md overflow-hidden relative group hover:shadow-lg transition-shadow duration-300">
             <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
             <div className="absolute top-0 right-0 w-full h-full overflow-hidden">
-              <svg className="absolute -right-4 top-8 opacity-5" width="100" height="100" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 9V13M12 17H12.01M10.1209 2.53125L2.69565 15.2812C1.94665 16.5747 1.57215 17.2214 1.61748 17.7384C1.65713 18.1895 1.90312 18.598 2.28394 18.8418C2.72497 19.125 3.47168 19.125 4.96511 19.125H19.0349C20.5283 19.125 21.275 19.125 21.7161 18.8418C22.0969 18.598 22.3429 18.1895 22.3825 17.7384C22.4278 17.2214 22.0533 16.5747 21.3043 15.2812L13.8791 2.53125C13.1335 1.24169 12.7607 0.596918 12.2908 0.346771C11.8795 0.128521 11.4032 0.127387 10.9908 0.343771C10.5192 0.592271 10.1444 1.23563 9.39485 2.53125H10.1209Z" stroke="red" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <svg
+                className="absolute -right-4 top-8 opacity-5"
+                width="100"
+                height="100"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 9V13M12 17H12.01M10.1209 2.53125L2.69565 15.2812C1.94665 16.5747 1.57215 17.2214 1.61748 17.7384C1.65713 18.1895 1.90312 18.598 2.28394 18.8418C2.72497 19.125 3.47168 19.125 4.96511 19.125H19.0349C20.5283 19.125 21.275 19.125 21.7161 18.8418C22.0969 18.598 22.3429 18.1895 22.3825 17.7384C22.4278 17.2214 22.0533 16.5747 21.3043 15.2812L13.8791 2.53125C13.1335 1.24169 12.7607 0.596918 12.2908 0.346771C11.8795 0.128521 11.4032 0.127387 10.9908 0.343771C10.5192 0.592271 10.1444 1.23563 9.39485 2.53125H10.1209Z"
+                  stroke="red"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </div>
             <CardHeader className="pb-3 relative z-10">
@@ -261,8 +407,8 @@ export default function AdminProfile() {
             <CardContent className="relative z-10">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="destructive" 
+                  <Button
+                    variant="destructive"
                     className="w-full shadow-sm transition-all duration-200 hover:scale-[1.02] bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700"
                   >
                     <AlertTriangle size={16} className="mr-2" />
@@ -276,15 +422,18 @@ export default function AdminProfile() {
                   </div>
                   <AlertDialogHeader>
                     <AlertDialogTitle className="flex items-center text-red-700">
-                      <AlertTriangle size={18} className="mr-2 text-red-500" /> 
+                      <AlertTriangle size={18} className="mr-2 text-red-500" />
                       Are you absolutely sure?
                     </AlertDialogTitle>
                     <AlertDialogDescription className="text-red-600/80">
-                      This action cannot be undone. This will permanently delete your account and remove your data from our servers.
+                      This action cannot be undone. This will permanently delete
+                      your account and remove your data from our servers.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel className="border-red-200 text-red-700 hover:bg-red-50">Cancel</AlertDialogCancel>
+                    <AlertDialogCancel className="border-red-200 text-red-700 hover:bg-red-50">
+                      Cancel
+                    </AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDeleteAccount}
                       disabled={isLoading}
@@ -301,4 +450,4 @@ export default function AdminProfile() {
       </div>
     </MainLayout>
   );
-} 
+}

@@ -14,7 +14,8 @@ type StatusVariant =
   | "rejected"
   | "inactive"
   | "seller"
-  | "buyer";
+  | "buyer"
+  | "destructive";
 
 interface CustomBadgeProps {
   variant: StatusVariant;
@@ -35,6 +36,7 @@ const statusColorMap: Record<StatusVariant, string> = {
   inactive: "bg-rose-200 text-black",
   seller: "bg-gray-200 text-black",
   buyer: "bg-gray-200 text-black",
+  destructive: "bg-red-600 text-white",
 };
 
 export const StatusBadge = ({
