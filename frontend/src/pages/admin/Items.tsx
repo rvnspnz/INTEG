@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { BadgeCheck, Clock, PackagePlus, X, AlertTriangle } from "lucide-react";
+import { useState, useEffect } from "react";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,109 +11,173 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Item } from "@/lib/types";
-import { items, users } from "@/lib/data";
 import MainLayout from "@/components/Layout/MainLayout";
-import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/ui/custom-badge";
 import { Badge } from "@/components/ui/badge";
+import axios from "axios";
+import { Separator } from "@/components/ui/separator";
+import {
+  BadgeCheck,
+  FileText,
+  X,
+  Tag,
+  DollarSign,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
+
+const API_BASE_URL = "http://localhost:8080/api/item";
 
 const Items = () => {
-  const [itemsData, setItemsData] = useState<Item[]>(items);
-  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [itemsData, setItemsData] = useState([]);
+  const [selectedItem, setSelectedItem] = useState(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-
-  const form = useForm<Item>({
-    defaultValues: {
-      id: "",
-      name: "",
-      description: "",
-      price: 0,
-      sellerId: "",
-      sellerName: "",
-      status: "pending",
-      category: "",
-      createdAt: new Date(),
-    },
+  const [newItem, setNewItem] = useState({
+    name: "",
+    description: "",
+    startingPrice: "",
+    bidIncrement: "",
+    sellerId: "",
+    categoryId: "",
+    image: null,
   });
 
-  const handleViewDetails = (item: Item) => {
+  // Fetch items from the backend
+  const fetchItems = async () => {
+    try {
+      const response = await axios.get(API_BASE_URL);
+      const items = response.data?.data || [];
+      setItemsData(items);
+      return items;
+    } catch (error) {
+      console.error("Error fetching items:", error);
+      toast.error("Failed to fetch items");
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const handleViewDetails = (item) => {
     setSelectedItem(item);
     setIsViewDialogOpen(true);
   };
 
-  const handleEdit = (item: Item) => {
-    setSelectedItem(item);
-    form.reset({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      price: item.price,
-      sellerId: item.sellerId,
-      sellerName: item.sellerName,
-      status: item.status,
-      category: item.category,
-      imageUrl: item.imageUrl,
-      createdAt: item.createdAt,
-    });
-    setIsEditDialogOpen(true);
-  };
-
-  const handleDelete = (item: Item) => {
-    setSelectedItem(item);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = () => {
-    if (selectedItem) {
-      setItemsData(itemsData.filter((item) => item.id !== selectedItem.id));
-      setIsDeleteDialogOpen(false);
-      toast.success(`Item deleted successfully`);
+  const getStatusVariant = (status) => {
+    switch (status) {
+      case "APPROVED":
+        return "success";
+      case "REJECTED":
+        return "rejected";
+      case "PENDING":
+        return "pending";
+      case "SOLD":
+        return "info";
+      case "EXPIRED":
+        return "inactive";
+      default:
+        return "default";
     }
   };
 
-  const onSubmit = (data: Item) => {
-    if (isEditDialogOpen) {
-      // Update existing item
-      setItemsData(
-        itemsData.map((item) => (item.id === data.id ? { ...data } : item))
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case "APPROVED":
+        return <BadgeCheck className="h-4 w-4 mr-1" />;
+      case "REJECTED":
+        return <X className="h-4 w-4 mr-1" />;
+      case "PENDING":
+        return <Clock className="h-4 w-4 mr-1" />;
+      case "SOLD":
+        return <AlertTriangle className="h-4 w-4 mr-1" />;
+      default:
+        return null;
+    }
+  };
+
+  const formatStatusText = (status) => {
+    return status === "APPROVED"
+      ? "Approved"
+      : status === "REJECTED"
+      ? "Rejected"
+      : status === "PENDING"
+      ? "Pending"
+      : status === "SOLD"
+      ? "Sold"
+      : status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  };
+
+  const handleStatusUpdate = async (newStatus) => {
+    if (!selectedItem) {
+      toast.error("No item selected");
+      return;
+    }
+
+    try {
+      await axios.put(
+        `${API_BASE_URL}/${selectedItem.id}/status`,
+        {
+          adminid: 1,
+          status: newStatus,
+        },
+        {
+          params: {
+            adminId: 1,
+            status: newStatus,
+          },
+        }
       );
-      setIsEditDialogOpen(false);
-      toast.success(`Item details updated successfully`);
-    } else {
-      // Add new item
-      const newItem = {
-        ...data,
-        id: Date.now().toString(),
-        createdAt: new Date(),
-        imageUrl:
-          "https://images.unsplash.com/photo-1524805444758-089113d48a6d",
-      };
-      setItemsData([newItem, ...itemsData]);
+      toast.success("Item status updated successfully");
+      fetchItems();
+      setIsViewDialogOpen(false);
+    } catch (error) {
+      console.error("Error updating item status:", error);
+      toast.error("Failed to update item status");
+    }
+  };
+
+  const handleAddItem = () => {
+    setIsAddDialogOpen(true);
+  };
+
+  const handleAddItemSubmit = async () => {
+    const formData = new FormData();
+    formData.append("name", newItem.name);
+    formData.append("description", newItem.description);
+    formData.append("startingPrice", newItem.startingPrice);
+    formData.append("bidIncrement", newItem.bidIncrement);
+    formData.append("sellerId", newItem.sellerId);
+    formData.append("categoryId", newItem.categoryId);
+    if (newItem.image) {
+      formData.append("image", newItem.image);
+    }
+
+    try {
+      await axios.post(API_BASE_URL, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success("Item added successfully");
+      fetchItems();
       setIsAddDialogOpen(false);
-      toast.success(`New item added successfully`);
+      setNewItem({
+        name: "",
+        description: "",
+        startingPrice: "",
+        bidIncrement: "",
+        sellerId: "",
+        categoryId: "",
+        image: null,
+      });
+    } catch (error) {
+      console.error("Error adding item:", error);
+      toast.error("Failed to add item");
     }
   };
 
@@ -122,24 +185,27 @@ const Items = () => {
     {
       id: "name",
       header: "Item",
-      cell: (row: Item) => (
+      cell: (row) => (
         <div className="flex items-center">
-          {row.imageUrl ? (
+          {row.imageBase64 ? (
             <div
-              className="h-10 w-10 rounded-md bg-cover bg-center mr-3"
-              style={{ backgroundImage: `url(${row.imageUrl})` }}
+              className="h-12 w-12 rounded-lg bg-cover bg-center mr-3 border border-[#AA8F66]/20 shadow-sm overflow-hidden"
+              style={{ backgroundImage: `url(${row.imageBase64})` }}
             />
           ) : (
-            <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center mr-3">
-              <span className="text-primary font-medium">
+            <div className="h-12 w-12 rounded-lg bg-[#AA8F66]/10 flex items-center justify-center mr-3 border border-[#AA8F66]/20">
+              <span className="text-[#AA8F66] font-medium">
                 {row.name.charAt(0)}
               </span>
             </div>
           )}
           <div>
-            <div className="font-medium truncate max-w-[200px]">{row.name}</div>
-            <div className="text-sm text-muted-foreground">
-              ID: {row.id.substring(0, 8)}
+            <div className="font-medium truncate max-w-[200px] text-[#5A3A31]">
+              {row.name}
+            </div>
+            <div className="text-sm text-[#5A3A31]/70 flex items-center">
+              <Tag size={12} className="mr-1 text-[#AA8F66]" />
+              {row.category?.name}
             </div>
           </div>
         </div>
@@ -147,63 +213,38 @@ const Items = () => {
       sortable: true,
     },
     {
-      id: "price",
-      header: "Price",
-      cell: (row: Item) => (
-        <div className="font-medium">${row.price.toLocaleString()}</div>
+      id: "startingPrice",
+      header: "Starting Price",
+      cell: (row) => (
+        <div className="font-medium text-[#5A3A31] flex items-center">
+          <DollarSign size={14} className="mr-1 text-[#AA8F66]" />
+          {row.startingPrice.toLocaleString()}
+        </div>
       ),
       sortable: true,
     },
     {
-      id: "category",
-      header: "Category",
-      cell: (row: Item) => <Badge variant="outline">{row.category}</Badge>,
-      sortable: true,
-    },
-    {
-      id: "sellerName",
+      id: "seller",
       header: "Seller",
-      cell: (row: Item) => <div className="text-sm">{row.sellerName}</div>,
+      cell: (row) => (
+        <div className="text-sm text-[#5A3A31]">{row.seller?.username}</div>
+      ),
       sortable: true,
     },
     {
       id: "status",
       header: "Status",
-      cell: (row: Item) => {
-        let icon;
-
-        // Map status to appropriate variant
-        const statusVariantMap: Record<string, any> = {
-          approved: "active",
-          rejected: "rejected",
-          pending: "pending",
-          sold: "warning",
-        };
-
-        const variant = statusVariantMap[row.status] || "info";
-
-        switch (row.status) {
-          case "approved":
-            icon = <BadgeCheck className="h-4 w-4 mr-1 text-success" />;
-            break;
-          case "rejected":
-            icon = <X className="h-4 w-4 mr-1 text-destructive" />;
-            break;
-          case "pending":
-            icon = <Clock className="h-4 w-4 mr-1 text-muted-foreground" />;
-            break;
-          case "sold":
-            icon = <AlertTriangle className="h-4 w-4 mr-1 text-warning" />;
-            break;
-        }
-
-        return (
-          <StatusBadge variant={variant} className="gap-1">
-            {icon}
-            {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
+      cell: (row) => (
+        <div className="flex items-center">
+          <StatusBadge
+            variant={getStatusVariant(row.status)}
+            className="text-xs py-0.5 px-2 h-5 flex items-center"
+          >
+            {getStatusIcon(row.status)}
+            {formatStatusText(row.status)}
           </StatusBadge>
-        );
-      },
+        </div>
+      ),
       sortable: true,
     },
   ];
@@ -212,445 +253,227 @@ const Items = () => {
     <MainLayout>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Items</h1>
-          <p className="text-muted-foreground">Manage auction items</p>
+          <h1 className="text-2xl font-bold tracking-tight text-[#5A3A31]">
+            Items
+          </h1>
+          <p className="text-[#5A3A31]/70">Manage auction items</p>
         </div>
       </div>
 
       <Card className="shadow-soft">
         <DataTable
           columns={columns}
-          data={itemsData}
+          fetchData={fetchItems}
           onView={handleViewDetails}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          searchPlaceholder="Search items..."
         />
       </Card>
-
-      {/* View Item Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Item Details</DialogTitle>
-          </DialogHeader>
-
-          {selectedItem && (
-            <div className="space-y-4">
-              {selectedItem.imageUrl && (
-                <div className="w-full h-48 rounded-lg overflow-hidden">
-                  <img
-                    src={selectedItem.imageUrl}
-                    alt={selectedItem.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">Name</Label>
-                  <p className="font-medium">{selectedItem.name}</p>
-                </div>
-
-                <div>
-                  <Label className="text-muted-foreground">Price</Label>
-                  <p className="font-medium">
-                    ${selectedItem.price.toLocaleString()}
-                  </p>
-                </div>
-
-                <div>
-                  <Label className="text-muted-foreground">Category</Label>
-                  <p className="font-medium">{selectedItem.category}</p>
-                </div>
-
-                <div>
-                  <Label className="text-muted-foreground">Status</Label>
-                  <p className="font-medium capitalize">
-                    {selectedItem.status}
-                  </p>
-                </div>
-
-                <div>
-                  <Label className="text-muted-foreground">Seller</Label>
-                  <p className="font-medium">{selectedItem.sellerName}</p>
-                </div>
-
-                <div>
-                  <Label className="text-muted-foreground">Listed On</Label>
-                  <p className="font-medium">
-                    {new Date(selectedItem.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-muted-foreground">Description</Label>
-                <p>{selectedItem.description}</p>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button>Close</Button>
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Item Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Edit Item</DialogTitle>
-            <DialogDescription>
-              Make changes to the item details here.
-            </DialogDescription>
-          </DialogHeader>
-
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 py-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Vintage Watch" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Describe the item..."
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="price"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Price</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="0.00"
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(parseFloat(e.target.value))
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="category"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Category</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Watches, Art, etc." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="sellerName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Seller</FormLabel>
-                        <Select
-                          onValueChange={(value) => {
-                            const seller = users.find((u) => u.name === value);
-                            if (seller) {
-                              form.setValue("sellerId", seller.id);
-                              field.onChange(value);
-                            }
-                          }}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select seller" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {users
-                              .filter((user) => user.role === "seller")
-                              .map((seller) => (
-                                <SelectItem key={seller.id} value={seller.name}>
-                                  {seller.name}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="approved">Approved</SelectItem>
-                            <SelectItem value="rejected">Rejected</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">
-                    Cancel
-                  </Button>
-                </DialogClose>
-                <Button type="submit">Save changes</Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
 
       {/* Add Item Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Add New Item</DialogTitle>
+            <DialogTitle>Add Item</DialogTitle>
             <DialogDescription>
               Enter the details of the new item.
             </DialogDescription>
           </DialogHeader>
-
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 py-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Vintage Watch" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Describe the item..."
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="price"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Price</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="0.00"
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(parseFloat(e.target.value))
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="category"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Category</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Watches, Art, etc." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="sellerName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Seller</FormLabel>
-                        <Select
-                          onValueChange={(value) => {
-                            const seller = users.find((u) => u.name === value);
-                            if (seller) {
-                              form.setValue("sellerId", seller.id);
-                              field.onChange(value);
-                            }
-                          }}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select seller" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {users
-                              .filter((user) => user.role === "seller")
-                              .map((seller) => (
-                                <SelectItem key={seller.id} value={seller.name}>
-                                  {seller.name}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="approved">Approved</SelectItem>
-                            <SelectItem value="rejected">Rejected</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">
-                    Cancel
-                  </Button>
-                </DialogClose>
-                <Button type="submit">Create Item</Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete Item</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this item? This action cannot be
-              undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center space-x-2 py-3">
-            {selectedItem?.imageUrl && (
-              <div
-                className="h-10 w-10 rounded-md bg-cover bg-center"
-                style={{ backgroundImage: `url(${selectedItem.imageUrl})` }}
-              />
-            )}
+          <div className="space-y-4">
             <div>
-              <p className="font-medium">{selectedItem?.name}</p>
-              <p className="text-sm text-muted-foreground">
-                ${selectedItem?.price?.toLocaleString()}
-              </p>
+              <Label>Name</Label>
+              <Input
+                value={newItem.name}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, name: e.target.value })
+                }
+                placeholder="Item name"
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={newItem.description}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, description: e.target.value })
+                }
+                placeholder="Item description"
+              />
+            </div>
+            <div>
+              <Label>Starting Price</Label>
+              <Input
+                type="number"
+                value={newItem.startingPrice}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, startingPrice: e.target.value })
+                }
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <Label>Bid Increment</Label>
+              <Input
+                type="number"
+                value={newItem.bidIncrement}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, bidIncrement: e.target.value })
+                }
+                placeholder="1.00"
+              />
+            </div>
+            <div>
+              <Label>Seller ID</Label>
+              <Input
+                value={newItem.sellerId}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, sellerId: e.target.value })
+                }
+                placeholder="Seller ID"
+              />
+            </div>
+            <div>
+              <Label>Category ID</Label>
+              <Input
+                value={newItem.categoryId}
+                onChange={(e) =>
+                  setNewItem({ ...newItem, categoryId: e.target.value })
+                }
+                placeholder="Category ID"
+              />
+            </div>
+            <div>
+              <Label>Image</Label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) =>
+                  setNewItem({ ...newItem, image: e.target.files[0] })
+                }
+              />
             </div>
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Cancel
-              </Button>
+              <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button type="button" variant="destructive" onClick={confirmDelete}>
-              Delete
-            </Button>
+            <Button onClick={handleAddItemSubmit}>Add Item</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Item Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Item Details</DialogTitle>
+            <DialogDescription>
+              Review and manage the auction item.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedItem && (
+            <div className="space-y-4">
+              <div className="w-full h-48 rounded-lg overflow-hidden shadow-sm border border-[#AA8F66]/20">
+                <img
+                  src={selectedItem.imageBase64}
+                  alt={selectedItem.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#5A3A31]">
+                    {selectedItem.name}
+                  </h3>
+                  <p className="text-sm text-[#5A3A31]/70">
+                    ID: {selectedItem.id}
+                  </p>
+                </div>
+                <StatusBadge
+                  variant={getStatusVariant(selectedItem.status)}
+                  className="text-xs py-0.5 px-2 h-5 flex items-center"
+                >
+                  {getStatusIcon(selectedItem.status)}
+                  {formatStatusText(selectedItem.status)}
+                </StatusBadge>
+              </div>
+
+              <Separator className="bg-[#AA8F66]/10" />
+
+              <div className="grid grid-cols-1 gap-3">
+                <div className="bg-[#f5f0ea] p-4 rounded-lg">
+                  <div className="flex items-start">
+                    <FileText className="h-5 w-5 mr-2 text-[#AA8F66]" />
+                    <div className="w-full">
+                      <Label className="text-sm text-[#5A3A31]/70 font-medium">
+                        Item Information
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                          <p className="text-xs text-[#5A3A31]/70">Category</p>
+                          <p className="font-medium text-[#5A3A31]">
+                            {selectedItem.category?.name}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#5A3A31]/70">Seller</p>
+                          <p className="font-medium text-[#5A3A31]">
+                            {selectedItem.seller?.username}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-xs text-[#5A3A31]/70">
+                          Starting Price
+                        </p>
+                        <p className="font-medium text-[#5A3A31]">
+                          ${selectedItem.startingPrice.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-[#f5f0ea] p-4 rounded-lg">
+                  <div className="flex items-start">
+                    <FileText className="h-5 w-5 mr-2 text-[#AA8F66]" />
+                    <div>
+                      <Label className="text-sm text-[#5A3A31]/70 font-medium">
+                        Description
+                      </Label>
+                      <p className="mt-1 text-sm text-[#5A3A31]">
+                        {selectedItem.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 flex space-x-2">
+            {selectedItem?.status === "PENDING" && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => handleStatusUpdate("REJECTED")}
+                  className="gap-1 rounded-md"
+                >
+                  <X className="h-4 w-4" />
+                  Reject
+                </Button>
+                <Button
+                  onClick={() => handleStatusUpdate("APPROVED")}
+                  className="gap-1 rounded-md bg-[#5A3A31] hover:bg-[#4a2a21] text-white"
+                >
+                  <BadgeCheck className="h-4 w-4" />
+                  Approve
+                </Button>
+              </>
+            )}
+            {selectedItem?.status !== "PENDING" && (
+              <Button onClick={() => setIsViewDialogOpen(false)}>Close</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

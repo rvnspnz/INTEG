@@ -17,12 +17,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { CheckCircle2, Clock, AlertCircle, XCircle } from "lucide-react";
 
 export default function SellerApplication() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showAlreadySubmittedDialog, setShowAlreadySubmittedDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Split user name into first and last name if available
@@ -179,14 +180,20 @@ export default function SellerApplication() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("API error:", response.status, errorText);
-        throw new Error(`API error: ${response.status}`);
+        
+        // Check if error is due to already submitted application
+        if (errorText.includes("already submitted") || response.status === 409) {
+          setShowAlreadySubmittedDialog(true);
+        } else {
+          throw new Error(`API error: ${response.status}`);
+        }
+      } else {
+        // Show success dialog
+        setShowSuccessDialog(true);
+        
+        // Success toast notification
+        toast.success("Application submitted successfully");
       }
-      
-      // Show success dialog
-      setShowSuccessDialog(true);
-      
-      // Success toast notification
-      toast.success("Application submitted successfully");
     } catch (error) {
       console.error("Error submitting seller application:", error);
       toast.error("Failed to submit application. Please try again.");
@@ -197,6 +204,11 @@ export default function SellerApplication() {
 
   const handleCloseDialog = () => {
     setShowSuccessDialog(false);
+    navigate("/");
+  };
+
+  const handleCloseAlreadySubmittedDialog = () => {
+    setShowAlreadySubmittedDialog(false);
     navigate("/");
   };
 
@@ -371,6 +383,52 @@ export default function SellerApplication() {
             <Button 
               className="w-full bg-[#AA8F66] hover:bg-[#9A805D] text-white" 
               onClick={handleCloseDialog}
+            >
+              Got it, thanks!
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Already Submitted Dialog */}
+      <Dialog open={showAlreadySubmittedDialog} onOpenChange={setShowAlreadySubmittedDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center flex flex-col items-center gap-4 pb-2">
+              <div className="h-16 w-16 rounded-full bg-amber-50 flex items-center justify-center">
+                <XCircle className="h-10 w-10 text-amber-500" />
+              </div>
+              <span className="text-xl">Application Already Submitted</span>
+            </DialogTitle>
+            <DialogDescription className="text-center pt-2 pb-4">
+              <p className="mb-4">
+                You have already submitted a seller application.
+              </p>
+              <div className="bg-amber-50 p-4 rounded-lg mb-4">
+                <div className="flex items-center gap-2 text-amber-700 font-medium mb-2">
+                  <Clock className="h-5 w-5" />
+                  <span>Application Status</span>
+                </div>
+                <p className="text-sm text-amber-600 text-left">
+                  Your application is currently being reviewed by our admin team. This process typically takes 1-3 business days.
+                  You'll receive an email notification once your application has been approved.
+                </p>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-center gap-2 text-blue-700 font-medium mb-2">
+                  <AlertCircle className="h-5 w-5" />
+                  <span>Need Assistance?</span>
+                </div>
+                <p className="text-sm text-blue-600 text-left">
+                  If you believe there's been an error or you need to update your application, please contact our support team for assistance.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              className="w-full bg-[#AA8F66] hover:bg-[#9A805D] text-white" 
+              onClick={handleCloseAlreadySubmittedDialog}
             >
               Got it, thanks!
             </Button>

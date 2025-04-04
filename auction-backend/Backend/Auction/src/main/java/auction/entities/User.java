@@ -48,12 +48,26 @@ public class User {
     private LocalDateTime createdAt;
 
     public void updateFromRO(UserRO userRO) {
-        this.firstName = userRO.getFirstName();
-        this.lastName = userRO.getLastName();
-        this.username = userRO.getUsername();
-        this.email = userRO.getEmail();
-        this.password = userRO.getPassword();
-        this.bio = userRO.getBio();
-        this.role = userRO.getRole();
-    }
+        if (userRO.getFirstName() != null) {
+            this.firstName = userRO.getFirstName();
+        }
+        if (userRO.getLastName() != null) {
+            this.lastName = userRO.getLastName();
+        }
+        if (userRO.getUsername() != null) {
+            this.username = userRO.getUsername();
+        }
+        if (userRO.getEmail() != null) {
+            this.email = userRO.getEmail();
+        }
+        if (userRO.getPassword() != null) {
+            this.password = userRO.getPassword();
+        }
+        if (userRO.getBio() != null) {
+            this.bio = userRO.getBio();
+        }
+        if (userRO.getRole() != null) {
+            this.role = userRO.getRole();
+        }
+    }    
 }

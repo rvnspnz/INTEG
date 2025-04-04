@@ -21,6 +21,7 @@ import java.util.Set;
 @AllArgsConstructor
 @Table(name = "items")
 public class Item {
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "item_id", columnDefinition = "BIGINT")
