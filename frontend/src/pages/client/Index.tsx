@@ -1,15 +1,89 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import Navbar from "../../components/Navbar";
 import ArtworkCard from "../../components/ArtworkCard";
 import GalleryExhibit from "../../components/GalleryExhibit";
-import { artworks } from "../../data/artworks";
+import { artworks as mockArtworks } from "../../data/artworks";
+import axios from "axios";
+import { ArtworkType } from "../../data/artworks";
+
+interface Artwork {
+  id: string;
+  title: string;
+  description: string;
+  startingPrice: number;
+  currentBid: number;
+  image: string;
+  artist: string;
+  type: ArtworkType;
+  auctionEnds: Date;
+  startingBid: number;
+  featured: boolean;
+  createdAt: Date;
+  auctionStatus?: 'NOT_STARTED' | 'ACTIVE' | 'ENDED';
+  itemStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  slug?: string;
+}
 
 const Index = () => {
-  const featuredArtworks = artworks.filter((artwork) => artwork.featured);
-  const recentArtworks = [...artworks]
-    .sort((a, b) => b.auctionEnds.getTime() - a.auctionEnds.getTime())
+  // Original mock data remains unchanged for featured section
+  const mockFeatured = mockArtworks.filter((artwork) => artwork.featured);
+
+  // State for backend data
+  const [backendArtworks, setBackendArtworks] = useState<Artwork[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch backend data
+  useEffect(() => {
+    const fetchArtworks = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get("http://localhost:8080/api/item");
+        const data = response.data.data;
+
+        const mappedArtworks = data
+          .filter((item: any) => item.status === "APPROVED")
+          .map((item: any) => ({
+            id: item.id.toString(),
+            artist: `${item.seller.firstName} ${item.seller.lastName}`,
+            title: item.name,
+            description: item.description,
+            startingPrice: item.startingPrice,
+            currentBid: item.currentBid || item.startingPrice,
+            image: item.imageBase64 || "/placeholder.svg",
+            type: item.category.name as ArtworkType,
+            auctionEnds: new Date(item.endTime),
+            startingBid: item.startingPrice,
+            featured: item.featured || false,
+            createdAt: new Date(item.createdAt),
+            auctionStatus: item.auctionStatus,
+            itemStatus: item.status,
+            slug: `item-${item.id}`
+          }));
+
+        setBackendArtworks(mappedArtworks);
+      } catch (error) {
+        console.error("Failed to fetch artworks:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchArtworks();
+  }, []);
+
+  // Featured artworks - show original mock featured items first
+  const featuredArtworks = [
+    ...mockFeatured,
+    ...backendArtworks
+      .filter(artwork => artwork.featured && !mockFeatured.some(mock => mock.id === artwork.id))
+      .slice(0, Math.max(0, 4 - mockFeatured.length))
+  ].slice(0, 4);
+
+  // Recent auctions - ONLY show backend data
+  const recentArtworks = backendArtworks
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 4);
 
   return (
@@ -45,7 +119,7 @@ const Index = () => {
       {/* Exhibition Section */}
       <section className="py-12 px-4 md:px-8 bg-gradient-to-b from-white to-gallery-beige/20">
         <div className="container mx-auto">
-          <div className="mb-8 text-center ">
+          <div className="mb-8 text-center">
             <h2 className="text-3xl font-display font-medium mb-2">
               Featured Exhibition
             </h2>
@@ -53,7 +127,6 @@ const Index = () => {
               Experience our curated selection in a virtual space
             </p>
           </div>
-
           <GalleryExhibit featuredArtworks={featuredArtworks} />
         </div>
       </section>
@@ -76,17 +149,28 @@ const Index = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {featuredArtworks.map((artwork) => (
-              <ArtworkCard key={artwork.id} artwork={artwork} />
+              <Link 
+                to={`/auctions/${artwork.slug || artwork.title.toLowerCase().replace(/\s+/g, '-')}`}
+                key={artwork.id}
+              >
+                <ArtworkCard 
+                  artwork={artwork} 
+                  status={artwork.auctionStatus ? 
+                    (artwork.auctionStatus === 'NOT_STARTED' ? 'Upcoming' : 'Active') : 
+                    'Active'
+                  }
+                />
+              </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Recent Auctions */}
+      {/* Recent Auctions - Now ONLY showing backend data */}
       <section className="py-16 px-4 md:px-8 bg-gallery-beige/20">
         <div className="container mx-auto">
           <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl md:text-3xl  font-display font-medium">
+            <h2 className="text-2xl md:text-3xl font-display font-medium">
               Recent Auctions
             </h2>
             <Link
@@ -98,11 +182,28 @@ const Index = () => {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {recentArtworks.map((artwork) => (
-              <ArtworkCard key={artwork.id} artwork={artwork} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="text-center py-8">Loading recent auctions...</div>
+          ) : recentArtworks.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {recentArtworks.map((artwork) => (
+                <Link 
+                  to={`/auctions/${artwork.slug || artwork.title.toLowerCase().replace(/\s+/g, '-')}`}
+                  key={artwork.id}
+                >
+                  <ArtworkCard 
+                    artwork={artwork} 
+                    status={artwork.auctionStatus ? 
+                      (artwork.auctionStatus === 'NOT_STARTED' ? 'Upcoming' : 'Active') : 
+                      'Active'
+                    }
+                  />
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">No recent auctions available</div>
+          )}
         </div>
       </section>
 
