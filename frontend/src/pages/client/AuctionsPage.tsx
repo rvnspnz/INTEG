@@ -6,7 +6,6 @@ import Navbar from "../../components/Navbar";
 import ArtworkCard from "../../components/ArtworkCard";
 import { artworks, ArtworkType } from "../../data/artworks";
 import { Search, Filter, Plus } from "lucide-react";
-import { Search, Filter } from "lucide-react";
 // Search and Filter are used in the JSX below
 // Input is used in the JSX below
 // Badge is used in the JSX below
@@ -17,10 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import CreateAuctionDialog from "@/components/CreateAuctionDialog";
-import ArtworkCard from "@/components/ArtworkCard";
 import axios from "axios";
-import { ArtworkType } from "@/data/artworks";
-
 
 interface Artwork {
   id: string;
@@ -84,7 +80,6 @@ const AuctionsPage = () => {
             chat: [], // Initialize with an empty array or map actual chat if available
             featured: item.featured || false,
 
-            createdAt: new Date(item.createdAt),
             auctionStatus: item.auctionStatus,
             itemStatus: item.status
 
@@ -313,10 +308,10 @@ const AuctionsPage = () => {
         ) : sortedArtworks.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {sortedArtworks.map((artwork) => (
-              <ArtworkCard 
+              <ArtworkCard
                 key={artwork.id} 
                 artwork={artwork} 
-                status={artwork.auctionStatus === 'NOT_STARTED' ? 'Upcoming' : 'Active'}
+                status={artwork.auctionStatus === 'NOT_STARTED' ? 'Upcoming' : 'ACTIVE'}
               />
             ))}
           </div>
