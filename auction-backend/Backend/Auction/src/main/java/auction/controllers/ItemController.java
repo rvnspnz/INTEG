@@ -1,5 +1,6 @@
 package auction.controllers;
 
+
 import auction.entities.DTO.ItemDTO;
 import auction.entities.Item;
 import auction.entities.RO.ItemRO;
@@ -18,16 +19,20 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+
 import java.util.Base64;
 import java.util.List;
+
 
 @RestController
 @RequestMapping("/api/item")
 @RequiredArgsConstructor
 public class ItemController {
 
+
     private final ItemService itemService;
     private final CategoryService categoryService;
+
 
     @GetMapping
     public ResponseEntity<?> getAllItems() {
@@ -36,17 +41,35 @@ public class ItemController {
         ));
     }
 
+
     @GetMapping("/{id}")
     public ResponseEntity<?> getItemById(@PathVariable Long id) {
-        return ResponseEntity.ok(ResponseUtils.buildSuccessResponse(
-                HttpStatus.OK, MessageUtils.retrieveSuccess("Item"), itemService.getItemById(id)
-        ));
+        try {
+            // Get item with all relationships loaded
+            Item item = itemService.getItemById(id);
+           
+            // Convert to DTO for proper data transformation
+            ItemDTO itemDTO = new ItemDTO(item);
+           
+            // For debugging to check if startingPrice is included
+            System.out.println("Returning item with startingPrice: " + itemDTO.getStartingPrice());
+           
+            return ResponseEntity.ok(ResponseUtils.buildSuccessResponse(
+                    HttpStatus.OK, MessageUtils.retrieveSuccess("Item"), itemDTO
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ResponseUtils.buildErrorResponse(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "Error retrieving item: " + e.getMessage()
+            ));
+        }
     }
+
 
     @GetMapping("/filter")
     public ResponseEntity<?> getItemsByFilter(
             @RequestParam(required = false) ItemStatus status,
             @RequestParam(required = false) Long categoryId) {
+
 
         if (categoryId != null && categoryService.getById(categoryId) == null) {
             return ResponseEntity.badRequest().body(ResponseUtils.buildErrorResponse(
@@ -54,12 +77,15 @@ public class ItemController {
             ));
         }
 
+
         List<Item> items = itemService.getAllByFilter(status, categoryId);
+
 
         return ResponseEntity.ok(ResponseUtils.buildSuccessResponse(
                 HttpStatus.OK, "Filtered items retrieved successfully", items
         ));
     }
+
 
     @PostMapping(consumes = {"multipart/form-data"})
     public ResponseEntity<?> createItem(
@@ -73,6 +99,7 @@ public class ItemController {
             ));
         }
 
+
         try {
             if (!image.isEmpty()) {
                 String mimeType = image.getContentType();
@@ -80,6 +107,7 @@ public class ItemController {
                         Base64.getEncoder().encodeToString(image.getBytes());
                 itemRO.setImageBase64(base64Image);
             }
+
 
             itemService.save(itemRO, session);
             return ResponseEntity.status(HttpStatus.CREATED).body(ResponseUtils.buildSuccessResponse(
@@ -92,6 +120,8 @@ public class ItemController {
             ));
         }
     }
+
+
 
 
     @PutMapping("/{id}")
@@ -111,6 +141,7 @@ public class ItemController {
         ));
     }
 
+
     @PutMapping("/{itemId}/status")
     public ResponseEntity<ItemDTO> updateItemStatus(
             @PathVariable Long itemId,
@@ -120,6 +151,7 @@ public class ItemController {
         ItemDTO updatedItem = itemService.updateItemStatus(itemId, adminId, status, session);
         return ResponseEntity.ok(updatedItem);
     }
+
 
     @PutMapping("/auction/status")
     public ResponseEntity<?> updateAuctionStatus(HttpSession session) {
@@ -134,6 +166,7 @@ public class ItemController {
             ));
         }
     }
+
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteItem(@PathVariable Long id) {

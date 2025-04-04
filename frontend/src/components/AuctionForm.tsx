@@ -2,19 +2,23 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  CalendarIcon, 
-  DollarSignIcon, 
-  TagIcon, 
-  InfoIcon, 
-  ClockIcon 
+import {
+  CalendarIcon,
+  DollarSignIcon,
+  TagIcon,
+  InfoIcon,
+  ClockIcon,
+  Image
 } from "lucide-react";
+import { toast } from "sonner";
+
 
 interface AuctionFormProps {
   onSubmit: (auctionData: any) => void;
   isEditable: boolean;
   initialData?: Partial<AuctionData>;
 }
+
 
 interface AuctionData {
   itemName: string;
@@ -25,24 +29,24 @@ interface AuctionData {
   category: string;
   startTime: string;
   endTime: string;
+  imageBase64?: string;
 }
 
-const AuctionForm: React.FC<AuctionFormProps> = ({ 
-  onSubmit, 
+
+const AuctionForm: React.FC<AuctionFormProps> = ({
+  onSubmit,
   isEditable = true,
-  initialData = {} 
+  initialData = {}
 }) => {
   // Predefined categories with icons
   const categoriesWithIcons = [
-    { name: "Art", icon: "🎨" },
-    { name: "Collectibles", icon: "🏺" },
-    { name: "Electronics", icon: "💻" },
-    { name: "Fashion", icon: "👗" },
-    { name: "Furniture", icon: "🛋️" },
-    { name: "Jewelry", icon: "💍" },
-    { name: "Sports", icon: "⚽" },
-    { name: "Toys", icon: "🧸" },
+    { name: "Paintings", icon: "🖼️" },
+    { name: "Sculptures", icon: "🗿" },
+    { name: "Handicrafts", icon: "🧵" },
+    { name: "Photography", icon: "📸" },
+    { name: "Digital Art", icon: "💻" },
   ];
+
 
   // State management with initial data
   const [formData, setFormData] = useState<AuctionData>({
@@ -54,63 +58,107 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
     category: initialData.category || "",
     startTime: initialData.startTime || "",
     endTime: initialData.endTime || "",
+    imageBase64: initialData.imageBase64 || "",
   });
+
 
   // Dynamic form validation state
   const [errors, setErrors] = useState<Partial<Record<keyof AuctionData, string>>>({});
   const [loading, setLoading] = useState<boolean>(false);
 
+
   // Validate form before submission
   const validateForm = () => {
     const newErrors: Partial<Record<keyof AuctionData, string>> = {};
+
 
     if (!formData.itemName.trim()) {
       newErrors.itemName = "Item name is required";
     }
 
+
     if (!formData.description.trim()) {
       newErrors.description = "Description is required";
     }
+
 
     if (formData.startingPrice <= 0) {
       newErrors.startingPrice = "Starting price must be greater than 0";
     }
 
+
     if (!formData.category) {
       newErrors.category = "Please select a category";
     }
+
 
     if (formData.auctionType === "fixed" && (!formData.increment || formData.increment % 50 !== 0)) {
       newErrors.increment = "Increment must be a multiple of 50";
     }
 
+
     if (!formData.startTime) {
       newErrors.startTime = "Start time is required";
     }
+
 
     if (!formData.endTime) {
       newErrors.endTime = "End time is required";
     }
 
+
     if (new Date(formData.startTime) >= new Date(formData.endTime)) {
       newErrors.endTime = "End time must be after start time";
     }
+
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (validateForm()) {
-      setLoading(true);
+    if (!validateForm()) return;
+
+
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('name', formData.itemName);
+      formDataToSend.append('description', formData.description);
+      formDataToSend.append('startingPrice', formData.startingPrice.toString());
+      formDataToSend.append('bidIncrement', formData.increment?.toString() || '50');
+      formDataToSend.append('categoryId', formData.category);
+      formDataToSend.append('startTime', formData.startTime);
+      formDataToSend.append('endTime', formData.endTime);
+      if (formData.imageBase64) {
+        formDataToSend.append('image', formData.imageBase64);
+      }
+
+
+      const response = await fetch('http://localhost:8080/api/item', {
+        method: 'POST',
+        body: formDataToSend,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+
+      if (!response.ok) {
+        throw new Error('Failed to create auction');
+      }
+
+
+      toast.success('Auction created successfully');
       onSubmit(formData);
-      // Note: Actual loading state management should be handled by parent component
-      setTimeout(() => setLoading(false), 2000);
+    } catch (error) {
+      console.error('Error creating auction:', error);
+      toast.error('Failed to create auction');
     }
   };
+
 
   // Update form data dynamically
   const updateFormData = (key: keyof AuctionData, value: any) => {
@@ -126,6 +174,7 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
     }
   };
 
+
   // Special handler for auction type to reset increment
   const handleAuctionTypeChange = (type: "open" | "fixed") => {
     if (isEditable) {
@@ -137,10 +186,25 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
     }
   };
 
+
+  // Handle image upload
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        updateFormData('imageBase64', base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+
   return (
     <div className="flex justify-center mt-2">
-      <form 
-        onSubmit={handleSubmit} 
+      <form
+        onSubmit={handleSubmit}
         className="bg-white shadow-2xl rounded-2xl p-8 w-full max-w-3xl space-y-6 border border-[#5A3A31]"
       >
         <div className="text-center mb-6">
@@ -148,23 +212,24 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
             {isEditable ? "Create" : "View"} Your <span className="text-[#AA8F66]">Auction</span>
           </h2>
           <p className="text-[#5A3A31]">
-            {isEditable 
-              ? "Fill in the details of your auction item" 
+            {isEditable
+              ? "Fill in the details of your auction item"
               : "Auction item details"}
           </p>
         </div>
+
 
         {/* Item Name */}
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-[#110407]">
             <InfoIcon className="w-4 h-4" /> Item Name
           </label>
-          <Input 
-            placeholder="Enter item name" 
+          <Input
+            placeholder="Enter item name"
             value={formData.itemName}
             onChange={(e) => updateFormData('itemName', e.target.value)}
             disabled={!isEditable}
-            className={`w-full ${errors.itemName ? 'border-red-500' : ''} 
+            className={`w-full ${errors.itemName ? 'border-red-500' : ''}
               ${!isEditable ? 'bg-gray-100 cursor-not-allowed' : ''}`}
           />
           {errors.itemName && (
@@ -172,23 +237,25 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
           )}
         </div>
 
+
         {/* Description */}
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-[#110407]">
             <InfoIcon className="w-4 h-4" /> Description
           </label>
-          <Textarea 
-            placeholder="Describe your item in detail" 
+          <Textarea
+            placeholder="Describe your item in detail"
             value={formData.description}
             onChange={(e) => updateFormData('description', e.target.value)}
             disabled={!isEditable}
-            className={`w-full ${errors.description ? 'border-red-500' : ''} 
+            className={`w-full ${errors.description ? 'border-red-500' : ''}
               ${!isEditable ? 'bg-gray-100 cursor-not-allowed' : ''}`}
           />
           {errors.description && (
             <p className="text-red-500 text-xs mt-1">{errors.description}</p>
           )}
         </div>
+
 
         {/* Price and Auction Type */}
         <div className="grid md:grid-cols-2 gap-4">
@@ -197,8 +264,8 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
             <label className="flex items-center gap-2 text-sm font-medium text-[#110407]">
               <DollarSignIcon className="w-4 h-4" /> Starting Price
             </label>
-            <Input 
-              type="number" 
+            <Input
+              type="number"
               placeholder="Enter starting price"
               value={formData.startingPrice || ''} // Allow empty input
               onChange={(e) => {
@@ -207,13 +274,14 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
               }}
               min={0} // Prevent negative values in the input field
               disabled={!isEditable}
-              className={`w-full ${errors.startingPrice ? 'border-red-500' : ''} 
+              className={`w-full ${errors.startingPrice ? 'border-red-500' : ''}
                 ${!isEditable ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             />
             {errors.startingPrice && (
               <p className="text-red-500 text-xs mt-1">{errors.startingPrice}</p>
             )}
           </div>
+
 
           {/* Auction Type */}
           <div className="space-y-2">
@@ -226,8 +294,8 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
                   onClick={() => handleAuctionTypeChange(type as "open" | "fixed")}
                   disabled={!isEditable}
                   className={`flex-1 py-2 rounded-lg transition-all ${
-                    formData.auctionType === type 
-                      ? 'bg-[#5A3A31] text-white' 
+                    formData.auctionType === type
+                      ? 'bg-[#5A3A31] text-white'
                       : 'bg-gray-100 text-[#110407] hover:bg-gray-200'
                   } ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
@@ -237,6 +305,7 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
             </div>
           </div>
         </div>
+
 
         {/* Increment (for Fixed Bid) */}
         {formData.auctionType === "fixed" && (
@@ -262,6 +331,7 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
             </div>
         )}
 
+
         {/* Category */}
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium text-[#110407]">
@@ -275,8 +345,8 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
                 onClick={() => updateFormData('category', name)}
                 disabled={!isEditable}
                 className={`py-2 rounded-lg flex items-center justify-center space-x-2 transition-all ${
-                  formData.category === name 
-                    ? 'bg-[#5A3A31] text-white' 
+                  formData.category === name
+                    ? 'bg-[#5A3A31] text-white'
                     : 'bg-gray-100 text-[#110407] hover:bg-gray-200'
                 } ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
@@ -290,6 +360,7 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
           )}
         </div>
 
+
         {/* Time Selection */}
         <div className="grid md:grid-cols-2 gap-4">
           {/* Start Time */}
@@ -297,12 +368,12 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
             <label className="flex items-center gap-2 text-sm font-medium text-[#110407]">
               <CalendarIcon className="w-4 h-4" /> Start Time
             </label>
-            <Input 
-              type="datetime-local" 
+            <Input
+              type="datetime-local"
               value={formData.startTime}
               onChange={(e) => updateFormData('startTime', e.target.value)}
               disabled={!isEditable}
-              className={`w-full ${errors.startTime ? 'border-red-500' : ''} 
+              className={`w-full ${errors.startTime ? 'border-red-500' : ''}
                 ${!isEditable ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             />
             {errors.startTime && (
@@ -310,17 +381,18 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
             )}
           </div>
 
+
           {/* End Time */}
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-medium text-[#110407]">
               <CalendarIcon className="w-4 h-4" /> End Time
             </label>
-            <Input 
-              type="datetime-local" 
+            <Input
+              type="datetime-local"
               value={formData.endTime}
               onChange={(e) => updateFormData('endTime', e.target.value)}
               disabled={!isEditable}
-              className={`w-full ${errors.endTime ? 'border-red-500' : ''} 
+              className={`w-full ${errors.endTime ? 'border-red-500' : ''}
                 ${!isEditable ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             />
             {errors.endTime && (
@@ -329,11 +401,38 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
           </div>
         </div>
 
+
+        {/* Image Upload */}
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-[#110407]">
+            <Image className="w-4 h-4" /> Item Image
+          </label>
+          <div className="flex flex-col gap-4">
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              disabled={!isEditable}
+              className={`w-full ${!isEditable ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+            />
+            {formData.imageBase64 && (
+              <div className="relative w-full h-48 rounded-lg overflow-hidden border border-gray-200">
+                <img
+                  src={formData.imageBase64}
+                  alt="Preview"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+
         {/* Submit Button */}
         {isEditable && (
           <div className="pt-4">
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={loading}
               className="w-full bg-[#5A3A31] hover:bg-[#AA8F66] text-white py-3 rounded-lg transition-all"
             >
@@ -345,5 +444,6 @@ const AuctionForm: React.FC<AuctionFormProps> = ({
     </div>
   );
 };
+
 
 export default AuctionForm;
