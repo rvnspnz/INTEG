@@ -1,151 +1,88 @@
-import { useState } from "react";
-import {
-  BadgeCheck,
-  Clock,
-  MoreHorizontal,
-  Plus,
-  UserPlus,
-  X,
-} from "lucide-react";
+import { useState, useEffect } from "react";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { User } from "@/lib/types";
-import { users } from "@/lib/data";
 import MainLayout from "@/components/Layout/MainLayout";
-import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { StatusBadge } from "@/components/ui/custom-badge";
+import axios from "axios";
+import { Badge, FileText, User } from "lucide-react";
+import { Label, Separator } from "@radix-ui/react-dropdown-menu";
+
+const API_BASE_URL = "http://localhost:8080/api/user";
 
 const Users = () => {
-  const [usersData, setUsersData] = useState<User[]>(users);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [usersData, setUsersData] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
-  const form = useForm<User>({
-    defaultValues: {
-      id: "",
-      name: "",
-      email: "",
-      role: "buyer",
-      status: "active",
-      createdAt: new Date(),
-    },
-  });
-
-  const handleEdit = (user: User) => {
-    setSelectedUser(user);
-    form.reset({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      createdAt: user.createdAt,
-      avatarUrl: user.avatarUrl,
-    });
-    setIsEditDialogOpen(true);
-  };
-
-  const handleDelete = (user: User) => {
-    setSelectedUser(user);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = () => {
-    if (selectedUser) {
-      setUsersData(usersData.filter((user) => user.id !== selectedUser.id));
-      setIsDeleteDialogOpen(false);
-      toast.success(`${selectedUser.name} has been deleted`);
+  const fetchUsers = async () => {
+    try {
+      const response = await axios.get(API_BASE_URL);
+      const users = response.data?.data || [];
+      setUsersData(users);
+      return users;
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      toast.error("Failed to fetch users");
+      return [];
     }
   };
 
-  const handleAddUser = () => {
-    form.reset({
-      id: "",
-      name: "",
-      email: "",
-      role: "buyer",
-      status: "active",
-      createdAt: new Date(),
-    });
-    setIsAddDialogOpen(true);
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const handleViewDetails = (user) => {
+    setSelectedUser(user);
+    setIsViewDialogOpen(true);
   };
 
-  const onSubmit = (data: User) => {
-    if (isEditDialogOpen) {
-      // Update existing user
-      setUsersData(
-        usersData.map((user) => (user.id === data.id ? { ...data } : user))
-      );
-      setIsEditDialogOpen(false);
-      toast.success(`${data.name}'s profile has been updated`);
-    } else {
-      // Add new user
-      const newUser = {
-        ...data,
-        id: Date.now().toString(),
-        createdAt: new Date(),
-        avatarUrl: `https://randomuser.me/api/portraits/${
-          Math.random() > 0.5 ? "men" : "women"
-        }/${Math.floor(Math.random() * 50)}.jpg`,
-      };
-      setUsersData([newUser, ...usersData]);
-      setIsAddDialogOpen(false);
-      toast.success(`${newUser.name} has been added successfully`);
+  const getRoleVariant = (role) => {
+    switch (role.toLowerCase()) {
+      case "admin":
+        return "bg-purple-100 text-purple-800 border-purple-300";
+      case "seller":
+        return "bg-blue-100 text-blue-800 border-blue-300";
+      case "buyer":
+        return "bg-green-100 text-green-800 border-green-300";
+      case "moderator":
+        return "bg-yellow-100 text-yellow-800 border-yellow-300";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-300";
     }
   };
 
   const columns = [
     {
       id: "name",
-      header: "User",
-      cell: (row: User) => (
+      header: "Name",
+      cell: (row) => (
         <div className="flex items-center">
           {row.avatarUrl ? (
             <img
               src={row.avatarUrl}
-              alt={row.name}
-              className="h-8 w-8 rounded-full mr-3"
+              alt={`${row.firstName} ${row.lastName}`}
+              className="h-10 w-10 rounded-full mr-3"
             />
           ) : (
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-              <span className="text-primary font-medium">
-                {row.name.charAt(0)}
+            <div className="h-10 w-10 rounded-full bg-[#AA8F66]/10 flex items-center justify-center mr-3">
+              <span className="text-[#5A3A31] font-medium">
+                {row.firstName?.charAt(0)}
               </span>
             </div>
           )}
           <div>
-            <div className="font-medium">{row.name}</div>
-            <div className="text-sm text-muted-foreground">{row.email}</div>
+            <div className="font-medium text-[#5A3A31]">
+              {row.firstName} {row.lastName}
+            </div>
+            <div className="text-sm text-[#5A3A31]/70">{row.email}</div>
           </div>
         </div>
       ),
@@ -154,49 +91,14 @@ const Users = () => {
     {
       id: "role",
       header: "Role",
-      cell: (row: User) => (
-        <StatusBadge variant={row.role}>
-          {row.role.charAt(0).toUpperCase() + row.role.slice(1)}
-        </StatusBadge>
-      ),
-      sortable: true,
-    },
-    {
-      id: "status",
-      header: "Status",
-      cell: (row: User) => {
-        let icon;
-
-        switch (row.status) {
-          case "active":
-            icon = <BadgeCheck className="h-4 w-4 mr-1 text-success" />;
-            break;
-          case "inactive":
-            icon = <X className="h-4 w-4 mr-1 text-destructive" />;
-            break;
-          case "pending":
-            icon = <Clock className="h-4 w-4 mr-1 text-muted-foreground" />;
-            break;
-        }
-
-        return (
-          <div className="flex items-center">
-            <StatusBadge variant={row.status} className="gap-1">
-              {icon}
-              {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
-            </StatusBadge>
-          </div>
-        );
-      },
-      sortable: true,
-    },
-    {
-      id: "createdAt",
-      header: "Joined",
-      cell: (row: User) => (
-        <div className="text-sm">
-          {new Date(row.createdAt).toLocaleDateString()}
-        </div>
+      cell: (row) => (
+        <span
+          className={`text-sm py-1.5 px-3 rounded-full font-medium ${getRoleVariant(
+            row.role
+          )}`}
+        >
+          {row.role}
+        </span>
       ),
       sortable: true,
     },
@@ -206,284 +108,131 @@ const Users = () => {
     <MainLayout>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground">
-            Manage users and their permissions
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-[#5A3A31]">
+            Users
+          </h1>
+          <p className="text-[#5A3A31]/70">View user information</p>
         </div>
       </div>
 
       <Card className="shadow-soft">
         <DataTable
           columns={columns}
-          data={usersData}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
+          fetchData={fetchUsers}
+          onView={handleViewDetails}
           searchPlaceholder="Search users..."
         />
       </Card>
 
-      {/* Edit User Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+      {/* View User Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>
-              Make changes to the user profile here.
+            <DialogTitle className="text-[#5A3A31]">User Details</DialogTitle>
+            <DialogDescription className="text-[#5A3A31]/70">
+              View and manage user information
             </DialogDescription>
           </DialogHeader>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 py-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="john@example.com"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="role"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Role</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select role" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="seller">Seller</SelectItem>
-                            <SelectItem value="buyer">Buyer</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="inactive">Inactive</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+          {selectedUser && (
+            <div className="space-y-4">
+              {/* User Header */}
+              <div className="flex items-center">
+                <div className="h-12 w-12 rounded-full bg-[#AA8F66]/10 flex items-center justify-center mr-3">
+                  <span className="text-[#5A3A31] font-medium">
+                    {selectedUser.firstName?.charAt(0)}
+                    {selectedUser.lastName?.charAt(0)}
+                  </span>
                 </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[#5A3A31]">
+                    {selectedUser.firstName} {selectedUser.lastName}
+                  </h3>
+                  <p className="text-sm text-[#5A3A31]/70">
+                    {selectedUser.email}
+                  </p>
+                </div>
+                <span
+                  className={`ml-auto py-1.5 px-3 rounded-full font-medium text-sm ${getRoleVariant(
+                    selectedUser.role
+                  )}`}
+                >
+                  {selectedUser.role}
+                </span>
               </div>
 
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">
-                    Cancel
-                  </Button>
-                </DialogClose>
-                <Button type="submit">Save changes</Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+              <Separator className="bg-[#AA8F66]/10" />
 
-      {/* Add User Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
-            <DialogDescription>
-              Enter the details of the new user.
-            </DialogDescription>
-          </DialogHeader>
+              {/* Information Sections */}
+              <div className="grid grid-cols-1 gap-3">
+                {/* Personal Information */}
+                <div className="bg-[#f5f0ea] p-4 rounded-lg">
+                  <div className="flex items-start">
+                    <User className="h-5 w-5 mr-2 text-[#AA8F66]" />
+                    <div className="w-full">
+                      <Label className="text-sm text-[#5A3A31]/70 font-medium">
+                        Personal Information
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                          <p className="text-xs text-[#5A3A31]/70">
+                            First Name
+                          </p>
+                          <p className="font-medium text-[#5A3A31]">
+                            {selectedUser.firstName}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#5A3A31]/70">Last Name</p>
+                          <p className="font-medium text-[#5A3A31]">
+                            {selectedUser.lastName}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 py-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Doe" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="john@example.com"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="role"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Role</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select role" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="seller">Seller</SelectItem>
-                            <SelectItem value="buyer">Buyer</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Status</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select status" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="inactive">Inactive</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                {/* Account Information */}
+                <div className="bg-[#f5f0ea] p-4 rounded-lg">
+                  <div className="flex items-start">
+                    <FileText className="h-5 w-5 mr-2 text-[#AA8F66]" />
+                    <div className="w-full">
+                      <Label className="text-sm text-[#5A3A31]/70 font-medium">
+                        Account Information
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                          <p className="text-xs text-[#5A3A31]/70">Email</p>
+                          <p className="font-medium text-[#5A3A31]">
+                            {selectedUser.email}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#5A3A31]/70">User ID</p>
+                          <p className="font-medium text-[#5A3A31]">
+                            {selectedUser.id}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-xs text-[#5A3A31]/70">Role</p>
+                        <p className="font-medium text-[#5A3A31]">
+                          <span
+                            className={`py-1.5 px-3 rounded-full text-sm ${getRoleVariant(
+                              selectedUser.role
+                            )}`}
+                          >
+                            {selectedUser.role}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">
-                    Cancel
-                  </Button>
-                </DialogClose>
-                <Button type="submit">Create User</Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete User</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this user? This action cannot be
-              undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center space-x-2 py-3">
-            {selectedUser?.avatarUrl && (
-              <img
-                src={selectedUser.avatarUrl}
-                alt={selectedUser?.name}
-                className="h-10 w-10 rounded-full"
-              />
-            )}
-            <div>
-              <p className="font-medium">{selectedUser?.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {selectedUser?.email}
-              </p>
             </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button type="button" variant="destructive" onClick={confirmDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </MainLayout>

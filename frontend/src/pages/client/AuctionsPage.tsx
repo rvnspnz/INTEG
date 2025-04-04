@@ -1,23 +1,26 @@
 import React, { useState, useEffect } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
+// Navbar is used in the JSX below
 import Navbar from "../../components/Navbar";
-<<<<<<< Updated upstream
 import ArtworkCard from "../../components/ArtworkCard";
 import { artworks, ArtworkType } from "../../data/artworks";
 import { Search, Filter, Plus } from "lucide-react";
-=======
 import { Search, Filter } from "lucide-react";
->>>>>>> Stashed changes
+// Search and Filter are used in the JSX below
+// Input is used in the JSX below
+// Badge is used in the JSX below
+// Button is used in the JSX below
+// CreateAuctionDialog is used in the JSX below
+// Removed duplicate import
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import CreateAuctionDialog from "@/components/CreateAuctionDialog";
-<<<<<<< Updated upstream
-=======
 import ArtworkCard from "@/components/ArtworkCard";
 import axios from "axios";
 import { ArtworkType } from "@/data/artworks";
+
 
 interface Artwork {
   id: string;
@@ -27,29 +30,22 @@ interface Artwork {
   currentBid: number;
   image: string;
   artist: string;
-  type: ArtworkType;
+  type: ArtworkType; // Updated to use ArtworkType
+  createdAt: Date;
   auctionEnds: Date;
   startingBid: number;
   bids: Array<{ id: string; userId: string; userName: string; amount: number; timestamp: Date }>;
   chat: Array<{ id: string; userId: string; userName: string; message: string; timestamp: Date }>;
   featured: boolean;
-  createdAt: Date;
   auctionStatus: 'NOT_STARTED' | 'ACTIVE' | 'ENDED';
   itemStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
->>>>>>> Stashed changes
 
 const AuctionsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedType, setSelectedType] = useState<ArtworkType | "all">("all");
+  const [selectedType, setSelectedType] = useState<string>("all");
   const [sortBy, setSortBy] = useState<
-<<<<<<< Updated upstream
-    "ending-soon" | "price-high" | "price-low" | "newest"
-  >("ending-soon");
-  const { user } = useAuth();
-
-=======
     "ending-soon" | "price-high" | "price-low" | "newest" | "featured"
   >("newest");
   const [artworks, setArtworks] = useState<Artwork[]>([]);
@@ -68,8 +64,7 @@ const AuctionsPage = () => {
         const mappedArtworks = data
           .filter(
             (item: any) =>
-              item.status === "APPROVED" && 
-              (item.auctionStatus === "ACTIVE" || item.auctionStatus === "NOT_STARTED")
+              item.status === "APPROVED" && item.auctionStatus === "ACTIVE" // Only include approved and active auctions
           )
           .map((item: any) => ({
             id: item.id,
@@ -77,17 +72,22 @@ const AuctionsPage = () => {
             title: item.name,
             description: item.description,
             startingPrice: item.startingPrice,
-            currentBid: item.currentBid || item.startingPrice,
+
+            currentBid: item.currentBid || item.startingPrice, // Replace with actual current bid if available
             image: item.imageBase64 || "/placeholder.svg",
-            type: item.category.name as ArtworkType,
+            type: item.category.name as ArtworkType, // Cast to ArtworkType
+            createdAt: new Date(item.createdAt),
+
             auctionEnds: new Date(item.endTime),
             startingBid: item.startingPrice,
             bids: [], // Initialize with an empty array or map actual bids if available
             chat: [], // Initialize with an empty array or map actual chat if available
             featured: item.featured || false,
+
             createdAt: new Date(item.createdAt),
             auctionStatus: item.auctionStatus,
             itemStatus: item.status
+
           }));
   
         setArtworks(mappedArtworks);
@@ -101,7 +101,6 @@ const AuctionsPage = () => {
     fetchArtworks();
   }, []);
 
->>>>>>> Stashed changes
   // Initialize search term from URL
   useEffect(() => {
     const urlSearchTerm = searchParams.get("search");
@@ -110,13 +109,13 @@ const AuctionsPage = () => {
     }
   }, [searchParams]);
 
-  const artworkTypes: { value: ArtworkType | "all"; label: string }[] = [
+  const artworkTypes = [
     { value: "all", label: "All Types" },
-    { value: "painting", label: "Paintings" },
-    { value: "sculpture", label: "Sculptures" },
-    { value: "handicraft", label: "Handicrafts" },
-    { value: "photography", label: "Photography" },
-    { value: "digital", label: "Digital Art" },
+    { value: "Paintings", label: "Paintings" },
+    { value: "Sculptures", label: "Sculptures" },
+    { value: "Handicrafts", label: "Handicrafts" },
+    { value: "Photography", label: "Photography" },
+    { value: "Digital Art", label: "Digital Art" },
   ];
 
   const sortOptions = [
@@ -127,7 +126,7 @@ const AuctionsPage = () => {
     { value: "featured", label: "Featured" },
   ];
 
-  const filteredArtworks = artworks.filter((artwork) => {
+  const filteredArtworks = artworks.filter((artwork: Artwork) => {
     const matchesSearch =
       artwork.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       artwork.artist.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -154,6 +153,7 @@ const AuctionsPage = () => {
         if (a.featured && !b.featured) return -1;
         if (!a.featured && b.featured) return 1;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+
       default:
         return 0;
     }
@@ -161,7 +161,6 @@ const AuctionsPage = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // Update URL
     setSearchParams({ search: searchTerm });
   };
 
@@ -214,9 +213,7 @@ const AuctionsPage = () => {
               <div className="relative md:col-span-3">
                 <select
                   value={selectedType}
-                  onChange={(e) =>
-                    setSelectedType(e.target.value as ArtworkType | "all")
-                  }
+                  onChange={(e) => setSelectedType(e.target.value)}
                   className="w-full px-4 py-2 h-10 border border-input bg-background rounded-md focus:outline-none focus:ring-1 focus:ring-gallery-accent appearance-none"
                 >
                   {artworkTypes.map((type) => (
@@ -311,7 +308,9 @@ const AuctionsPage = () => {
         </div>
 
         {/* Results */}
-        {sortedArtworks.length > 0 ? (
+        {loading ? (
+          <div className="text-center py-16">Loading artworks...</div>
+        ) : sortedArtworks.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {sortedArtworks.map((artwork) => (
               <ArtworkCard 

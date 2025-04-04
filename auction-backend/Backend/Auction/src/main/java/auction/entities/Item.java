@@ -21,6 +21,7 @@ import java.util.Set;
 @AllArgsConstructor
 @Table(name = "items")
 public class Item {
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "item_id", columnDefinition = "BIGINT")
@@ -84,5 +85,6 @@ public class Item {
         this.endTime = itemRO.getEndTime();
         this.auctionStatus = itemRO.getAuctionStatus();
         this.imageBase64 = itemRO.getImageBase64();
+        this.createdAt = itemRO.getCreatedAt();
     }
 }
