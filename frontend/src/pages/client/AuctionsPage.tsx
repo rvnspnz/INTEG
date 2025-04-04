@@ -29,6 +29,7 @@ interface Artwork {
   image: string;
   artist: string;
   type: ArtworkType; // Updated to use ArtworkType
+  createdAt: Date;
   auctionEnds: Date;
   startingBid: number;
   bids: Array<{ id: string; userId: string; userName: string; amount: number; timestamp: Date }>;
@@ -62,6 +63,7 @@ const AuctionsPage = () => {
               item.status === "APPROVED" && item.auctionStatus === "ACTIVE" // Only include approved and active auctions
           )
           .map((item: any) => ({
+            id: item.id,
             artist: `${item.seller.firstName} ${item.seller.lastName}`,
             title: item.name,
             description: item.description,
@@ -69,6 +71,7 @@ const AuctionsPage = () => {
             currentBid: item.currentBid || item.startingPrice, // Replace with actual current bid if available
             image: item.imageBase64 || "/placeholder.svg",
             type: item.category.name as ArtworkType, // Cast to ArtworkType
+            createdAt: new Date(item.createdAt),
             auctionEnds: new Date(item.endTime),
             startingBid: item.startingPrice,
             bids: [], // Initialize with an empty array or map actual bids if available
@@ -86,6 +89,7 @@ const AuctionsPage = () => {
   
     fetchArtworks();
   }, []);
+
 
   // Initialize search term from URL
   useEffect(() => {
@@ -131,7 +135,7 @@ const AuctionsPage = () => {
       case "price-low":
         return a.currentBid - b.currentBid;
       case "newest":
-        return b.auctionEnds.getTime() - a.auctionEnds.getTime();
+        return b.createdAt.getTime() - a.createdAt.getTime();
       default:
         return 0;
     }
