@@ -2,23 +2,106 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
 import Navbar from "../../components/Navbar";
+<<<<<<< Updated upstream
 import ArtworkCard from "../../components/ArtworkCard";
 import { artworks, ArtworkType } from "../../data/artworks";
 import { Search, Filter, Plus } from "lucide-react";
+=======
+import { Search, Filter } from "lucide-react";
+>>>>>>> Stashed changes
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import CreateAuctionDialog from "@/components/CreateAuctionDialog";
+<<<<<<< Updated upstream
+=======
+import ArtworkCard from "@/components/ArtworkCard";
+import axios from "axios";
+import { ArtworkType } from "@/data/artworks";
+
+interface Artwork {
+  id: string;
+  title: string;
+  description: string;
+  startingPrice: number;
+  currentBid: number;
+  image: string;
+  artist: string;
+  type: ArtworkType;
+  auctionEnds: Date;
+  startingBid: number;
+  bids: Array<{ id: string; userId: string; userName: string; amount: number; timestamp: Date }>;
+  chat: Array<{ id: string; userId: string; userName: string; message: string; timestamp: Date }>;
+  featured: boolean;
+  createdAt: Date;
+  auctionStatus: 'NOT_STARTED' | 'ACTIVE' | 'ENDED';
+  itemStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+}
+>>>>>>> Stashed changes
 
 const AuctionsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState<ArtworkType | "all">("all");
   const [sortBy, setSortBy] = useState<
+<<<<<<< Updated upstream
     "ending-soon" | "price-high" | "price-low" | "newest"
   >("ending-soon");
   const { user } = useAuth();
 
+=======
+    "ending-soon" | "price-high" | "price-low" | "newest" | "featured"
+  >("newest");
+  const [artworks, setArtworks] = useState<Artwork[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  // Fetch artworks from backend
+  useEffect(() => {
+    const fetchArtworks = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get("http://localhost:8080/api/item");
+        const data = response.data.data;
+  
+        // Map backend data to Artwork interface and filter by status
+        const mappedArtworks = data
+          .filter(
+            (item: any) =>
+              item.status === "APPROVED" && 
+              (item.auctionStatus === "ACTIVE" || item.auctionStatus === "NOT_STARTED")
+          )
+          .map((item: any) => ({
+            id: item.id,
+            artist: `${item.seller.firstName} ${item.seller.lastName}`,
+            title: item.name,
+            description: item.description,
+            startingPrice: item.startingPrice,
+            currentBid: item.currentBid || item.startingPrice,
+            image: item.imageBase64 || "/placeholder.svg",
+            type: item.category.name as ArtworkType,
+            auctionEnds: new Date(item.endTime),
+            startingBid: item.startingPrice,
+            bids: [], // Initialize with an empty array or map actual bids if available
+            chat: [], // Initialize with an empty array or map actual chat if available
+            featured: item.featured || false,
+            createdAt: new Date(item.createdAt),
+            auctionStatus: item.auctionStatus,
+            itemStatus: item.status
+          }));
+  
+        setArtworks(mappedArtworks);
+      } catch (error) {
+        console.error("Failed to fetch artworks:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    fetchArtworks();
+  }, []);
+
+>>>>>>> Stashed changes
   // Initialize search term from URL
   useEffect(() => {
     const urlSearchTerm = searchParams.get("search");
@@ -37,10 +120,11 @@ const AuctionsPage = () => {
   ];
 
   const sortOptions = [
+    { value: "newest", label: "Newest" },
     { value: "ending-soon", label: "Ending Soon" },
     { value: "price-high", label: "Price: High to Low" },
     { value: "price-low", label: "Price: Low to High" },
-    { value: "newest", label: "Newest" },
+    { value: "featured", label: "Featured" },
   ];
 
   const filteredArtworks = artworks.filter((artwork) => {
@@ -50,8 +134,9 @@ const AuctionsPage = () => {
       artwork.description.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesType = selectedType === "all" || artwork.type === selectedType;
+    const isActiveOrUpcoming = artwork.auctionStatus === 'ACTIVE' || artwork.auctionStatus === 'NOT_STARTED';
 
-    return matchesSearch && matchesType;
+    return matchesSearch && matchesType && isActiveOrUpcoming;
   });
 
   const sortedArtworks = [...filteredArtworks].sort((a, b) => {
@@ -63,7 +148,12 @@ const AuctionsPage = () => {
       case "price-low":
         return a.currentBid - b.currentBid;
       case "newest":
-        return b.auctionEnds.getTime() - a.auctionEnds.getTime();
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case "featured":
+        // Featured items first, then sort by newest
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       default:
         return 0;
     }
@@ -78,7 +168,7 @@ const AuctionsPage = () => {
   const clearFilters = () => {
     setSearchTerm("");
     setSelectedType("all");
-    setSortBy("ending-soon");
+    setSortBy("newest");
     setSearchParams({});
   };
 
@@ -170,7 +260,7 @@ const AuctionsPage = () => {
             </div>
 
             {/* Active filters */}
-            {(searchTerm || selectedType !== "all") && (
+            {(searchTerm || selectedType !== "all" || sortBy !== "newest") && (
               <div className="flex items-center gap-2 pt-2">
                 <span className="text-sm text-gallery-text/60">
                   Active filters:
@@ -190,6 +280,14 @@ const AuctionsPage = () => {
                       className="rounded-full bg-gallery-beige/50 text-gallery-text"
                     >
                       Type: {selectedType}
+                    </Badge>
+                  )}
+                  {sortBy !== "newest" && (
+                    <Badge
+                      variant="secondary"
+                      className="rounded-full bg-gallery-beige/50 text-gallery-text"
+                    >
+                      Sort: {sortOptions.find(o => o.value === sortBy)?.label}
                     </Badge>
                   )}
                   <Button
@@ -216,7 +314,11 @@ const AuctionsPage = () => {
         {sortedArtworks.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {sortedArtworks.map((artwork) => (
-              <ArtworkCard key={artwork.id} artwork={artwork} />
+              <ArtworkCard 
+                key={artwork.id} 
+                artwork={artwork} 
+                status={artwork.auctionStatus === 'NOT_STARTED' ? 'Upcoming' : 'Active'}
+              />
             ))}
           </div>
         ) : (
