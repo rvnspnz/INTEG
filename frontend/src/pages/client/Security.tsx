@@ -7,35 +7,84 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Shield, Lock } from "lucide-react";
+import axios from "axios";
 
 export default function Security() {
   const { user, logout } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // In a real application, you would call an API here
-    setTimeout(() => {
-      toast.success("Password changed successfully");
+  
+    const form = e.target as HTMLFormElement;
+    const currentPassword = (form.elements.namedItem("current-password") as HTMLInputElement).value;
+    const newPassword = (form.elements.namedItem("new-password") as HTMLInputElement).value;
+    const confirmPassword = (form.elements.namedItem("confirm-password") as HTMLInputElement).value;
+  
+    if (newPassword !== confirmPassword) {
+      toast.error("New password and confirmation do not match");
       setIsLoading(false);
-      
-      // Reset form
-      const form = e.target as HTMLFormElement;
-      form.reset();
-    }, 1000);
+      return;
+    }
+  
+    try {
+      // Assuming the logged-in user's ID is available in the user object
+      const userId = user?.id;
+  
+      if (!userId) {
+        toast.error("User not found");
+        setIsLoading(false);
+        return;
+      }
+  
+      // Call the updateUser API
+      const response = await axios.put(`http://localhost:8080/api/user/update/${userId}`, {
+        password: newPassword,
+      });
+  
+      if (response.status === 200) {
+        toast.success("Password changed successfully");
+        form.reset();
+      } else {
+        toast.error("Failed to change password");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("An error occurred while changing the password");
+    } finally {
+      setIsLoading(false);
+    }
   };
   
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     setIsLoading(true);
-    
-    // In a real application, you would call an API here
-    setTimeout(() => {
-      toast.success("Account deleted successfully");
+  
+    try {
+      // Assuming the logged-in user's ID is available in the user object
+      const userId = user?.id;
+  
+      if (!userId) {
+        toast.error("User not found");
+        setIsLoading(false);
+        return;
+      }
+  
+      // Call the deleteUser API
+      const response = await axios.delete(`http://localhost:8080/api/user/${userId}`);
+  
+      if (response.status === 200) {
+        toast.success("Account deleted successfully");
+        logout(); // Log the user out after account deletion
+      } else {
+        toast.error("Failed to delete account");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("An error occurred while deleting the account");
+    } finally {
       setIsLoading(false);
-      logout();
-    }, 1000);
+    }
   };
   
   if (!user) {
@@ -185,4 +234,4 @@ export default function Security() {
       </div>
     </ClientLayout>
   );
-} 
+}
